@@ -1,0 +1,26 @@
+# Dữ liệu đã chuyển đổi (sinh ra từ scripts/prepare_data.py) -- KHÔNG commit, xem README.md
+# mục "Dữ liệu" để biết lý do (bản quyền bên thứ 3) + cách tự tạo lại.
+UIT-ViSD4SA/iob/train.json
+UIT-ViSD4SA/iob/dev.json
+UIT-ViSD4SA/iob/test.json
+raw_data/
+
+# PhoW2V pretrained embedding (458MB, tải qua notebook, không commit)
+phow2v/
+
+# Checkpoint model đã huấn luyện (thường vài trăm MB - GB, tải riêng nếu cần chia sẻ)
+*.pt
+*.pth
+
+# Kết quả chạy + log thô (giữ lại nếu muốn báo cáo, nhưng mặc định không commit để repo gọn)
+results_*.json
+test_predictions_*.jsonl
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db

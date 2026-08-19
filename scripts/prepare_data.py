@@ -1,0 +1,126 @@
+"""
+Chuyển đổi UIT-ViSD4SA (định dạng jsonl gốc) sang syllable-level IOB + vocab
+mà `src/multihead_dataset.py`/`src/span_dataset.py` cần -- tái hiện đúng quy
+trình của notebook 08 (`08_syllable_iob_conversion.ipynb`) trong dự án gốc,
+nhưng làm việc trực tiếp trên jsonl GỐC của tác giả (không qua bước "sửa 122
+span lỗi offset" riêng của dự án gốc, notebook 05 -- không có trong repo
+này) để repo này tự đứng độc lập được, không phụ thuộc dữ liệu trung gian.
+
+Vì sao KHÔNG commit sẵn `train.json`/`dev.json`/`test.json` (đã chuyển đổi)
+vào repo: UIT-ViSD4SA là dữ liệu nghiên cứu của bên thứ 3 (Nguyen et al.,
+PACLIC 2021, https://github.com/kimkim00/UIT-ViSD4SA), không có giấy phép
+redistribute rõ ràng, chỉ yêu cầu trích dẫn -- an toàn hơn là chỉ đưa CODE
+chuyển đổi vào repo, người dùng tự tải dữ liệu gốc (đã công khai trên GitHub)
+rồi chạy script này.
+
+Cách dùng:
+    1. Tải 3 file `train.jsonl`/`dev.jsonl`/`test.jsonl` từ
+       https://github.com/kimkim00/UIT-ViSD4SA (đọc README của repo đó để
+       biết đường dẫn/tên file chính xác tại thời điểm bạn tải).
+    2. Đặt cả 3 file vào 1 thư mục, ví dụ `raw_data/`.
+    3. Chạy:
+         python scripts/prepare_data.py --raw-dir raw_data --out-dir UIT-ViSD4SA/iob
+
+Định dạng mỗi dòng jsonl gốc: {"text": "...", "labels": [[start, end, "ASPECT#POLARITY"], ...]}
+(không có "doc_id" -- script này tự sinh theo quy ước "<split>_<i>", khớp
+đúng quy ước `doc_id` mà dự án gốc dùng).
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.span_detection import convert_dataset
+
+SPLITS = ("train", "dev", "test")
+SCHEMES = ("aspect", "polarity", "aspect_polarity")
+SPECIAL_TOKENS = ["<PAD>", "<UNK>"]
+
+
+def load_raw_split(raw_dir: Path, split: str) -> list[dict]:
+    path = raw_dir / f"{split}.jsonl"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Không tìm thấy {path} -- tải file gốc từ "
+            "https://github.com/kimkim00/UIT-ViSD4SA rồi đặt vào {raw_dir} trước."
+        )
+    docs = []
+    with open(path, encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
+            raw = json.loads(line)
+            docs.append({"doc_id": f"{split}_{i}", "text": raw["text"], "labels": raw["labels"]})
+    return docs
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--raw-dir", type=Path, required=True, help="Thư mục chứa train.jsonl/dev.jsonl/test.jsonl gốc")
+    parser.add_argument("--out-dir", type=Path, default=Path("UIT-ViSD4SA/iob"), help="Thư mục xuất ra (mặc định UIT-ViSD4SA/iob)")
+    args = parser.parse_args()
+
+    raw = {split: load_raw_split(args.raw_dir, split) for split in SPLITS}
+    for split in SPLITS:
+        print(f"{split}: {len(raw[split]):,} review")
+
+    print("\nĐang tách âm tiết + chuyển sang IOB cho cả 3 biến thể nhãn...")
+    tagged = {split: {scheme: convert_dataset(raw[split], scheme=scheme) for scheme in SCHEMES} for split in SPLITS}
+
+    print("Đang dựng vocabulary (syllable + char) từ tập train...")
+    syllable_counter, char_counter = Counter(), Counter()
+    for t in tagged["train"]["aspect_polarity"]:
+        syllable_counter.update(tok.lower() for tok in t.tokens)
+        for tok in t.tokens:
+            char_counter.update(tok)
+    syllable_vocab = SPECIAL_TOKENS + [w for w, _ in syllable_counter.most_common()]
+    char_vocab = SPECIAL_TOKENS + [c for c, _ in char_counter.most_common()]
+    print(f"  Syllable vocab: {len(syllable_vocab):,} (bao gồm PAD/UNK)")
+    print(f"  Char vocab: {len(char_vocab):,} (bao gồm PAD/UNK)")
+
+    tag_vocab = {}
+    for scheme in SCHEMES:
+        tags = set()
+        for split in SPLITS:
+            for t in tagged[split][scheme]:
+                tags.update(t.tags)
+        tag_vocab[scheme] = ["O"] + sorted(tags - {"O"})
+        print(f"  tag_vocab[{scheme}]: {len(tag_vocab[scheme])} nhãn")
+
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+    for split in SPLITS:
+        docs_out = []
+        for i, doc in enumerate(raw[split]):
+            entry = {
+                "doc_id": doc["doc_id"], "text": doc["text"],
+                "tokens": tagged[split]["aspect_polarity"][i].tokens,
+                "token_offsets": tagged[split]["aspect_polarity"][i].token_offsets,
+            }
+            for scheme in SCHEMES:
+                entry[f"tags_{scheme}"] = tagged[split][scheme][i].tags
+            docs_out.append(entry)
+        out_path = args.out_dir / f"{split}.json"
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump({"split": split, "n_docs": len(docs_out), "docs": docs_out}, f, ensure_ascii=False, indent=2)
+        print(f"Đã lưu {out_path}: {len(docs_out):,} document")
+
+    vocab_path = args.out_dir / "vocab.json"
+    with open(vocab_path, "w", encoding="utf-8") as f:
+        json.dump({"syllable_vocab": syllable_vocab, "char_vocab": char_vocab, "tag_vocab": tag_vocab}, f, ensure_ascii=False, indent=2)
+    print(f"Đã lưu {vocab_path}")
+    print(
+        "\nLưu ý: bản chuyển đổi này KHÔNG áp dụng bước 'sửa 122 span lỗi offset' mà dự án gốc "
+        "thực hiện riêng (notebook 05, không có trong repo này) -- nếu cần khớp CHÍNH XÁC "
+        "vocab.json/train.json đã dùng để báo cáo kết quả trong notebook 19, dùng file gốc từ "
+        "dự án chính thay vì tự tạo lại bằng script này."
+    )
+
+
+if __name__ == "__main__":
+    main()

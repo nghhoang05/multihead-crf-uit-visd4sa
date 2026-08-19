@@ -1,0 +1,15 @@
+# Core, cần cho cả huấn luyện lẫn scripts/smoke_test_multihead_model.py (CPU, không cần GPU)
+torch>=2.1
+numpy>=1.26
+pandas>=2.2
+
+# Cần cho notebook (huấn luyện thật) + scripts/prepare_data.py -- KHÔNG pin cứng phiên bản,
+# cùng quy ước với requirements.txt của dự án gốc (cài trực tiếp trên runtime GPU thực tế
+# dùng để train, vd Google Colab, thay vì trên máy phát triển CPU-only):
+#   pip install transformers gensim gdown
+# notebooks/19_multihead_crf_model.ipynb đã có sẵn 1 cell cài các gói này khi chạy trên Colab.
+
+# Chỉ cần nếu chạy notebook cục bộ (không phải Colab):
+jupyter
+ipykernel
+nbformat
