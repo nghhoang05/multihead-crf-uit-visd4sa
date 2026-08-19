@@ -237,7 +237,6 @@ def train_model(
     lr: float = 1e-3,
     xlmr_lr: float = 2e-5,
     weight_decay: float = 1e-2,
-    patience: int = 3,
     grad_clip: float = 5.0,
     checkpoint_path: Path | str | None = None,
     use_amp: bool = True,
@@ -246,7 +245,12 @@ def train_model(
     """Same shape, defaults, and rationale as `src/training.py::train_model`
     (this configuration keeps the baseline's own CRF hyperparameters, unlike
     Span-ViSD, since the extraction mechanism -- CRF decoding -- is
-    unchanged here; only the tag-space decomposition differs)."""
+    unchanged here; only the tag-space decomposition differs).
+
+    Runs the FULL `epochs` every time (no early stopping) -- the best
+    checkpoint by dev macro-F1 (exact span match) is still saved as training
+    proceeds, so a run that peaks early doesn't lose that checkpoint, but
+    the loop itself never breaks before `epochs` completes."""
     model.to(device)
     amp_enabled = use_amp and device.type == "cuda"
     scaler = torch.amp.GradScaler(device="cuda", enabled=amp_enabled)
@@ -259,7 +263,6 @@ def train_model(
 
     history = []
     best_macro_f1 = -1.0
-    epochs_without_improvement = 0
 
     for epoch in range(1, epochs + 1):
         batch_sampler = getattr(train_loader, "batch_sampler", None)
@@ -315,14 +318,8 @@ def train_model(
 
         if dev_metrics["macro"]["f1"] > best_macro_f1:
             best_macro_f1 = dev_metrics["macro"]["f1"]
-            epochs_without_improvement = 0
             if checkpoint_path is not None:
                 torch.save(model.state_dict(), checkpoint_path)
                 log_fn(f"  -> dev macro-F1 cải thiện, đã lưu checkpoint: {checkpoint_path}")
-        else:
-            epochs_without_improvement += 1
-            if epochs_without_improvement >= patience:
-                log_fn(f"  -> dừng sớm (early stopping): {patience} epoch liên tiếp không cải thiện dev macro-F1")
-                break
 
     return {"history": history, "best_dev_macro_f1": best_macro_f1}

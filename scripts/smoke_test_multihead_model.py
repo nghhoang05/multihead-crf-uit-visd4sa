@@ -185,7 +185,7 @@ toy_model = BiLSTMMultiHeadCRFTagger(
 quiet_log_mh = []
 mh_train_result = train_model(
     toy_model, toy_loader, toy_loader, toy_vocab, torch.device("cpu"),
-    epochs=1, patience=1, checkpoint_path=None, log_fn=quiet_log_mh.append,
+    epochs=1, checkpoint_path=None, log_fn=quiet_log_mh.append,
 )
 check(
     "multihead_training.train_model runs 1 epoch end-to-end on CPU without error",
