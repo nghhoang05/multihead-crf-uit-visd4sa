@@ -33,7 +33,7 @@ def _build_multihead(vocab, arch, checkpoint_path, data_dir, tokenizer, device, 
     if n_docs is not None:
         test_ds.docs = test_ds.docs[:n_docs]
     collate = MultiHeadCollator(vocab, tokenizer=tokenizer, use_contextual=arch["use_contextual"])
-    loader = DataLoader(test_ds, batch_size=1, collate_fn=collate)  # batch_size=1 -- YÊU CẦU của phép đo này
+    loader = DataLoader(test_ds, batch_size=1, collate_fn=collate)  # batch_size=1 -- REQUIRED for this measurement
 
     model = BiLSTMMultiHeadCRFTagger(
         syllable_vocab_size=len(vocab["syllable"]), char_vocab_size=len(vocab["char"]),
@@ -41,7 +41,7 @@ def _build_multihead(vocab, arch, checkpoint_path, data_dir, tokenizer, device, 
         use_char=arch["use_char"], use_contextual=arch["use_contextual"],
         contextual_model_name=arch["contextual_model_name"], contextual_projected_dim=arch["contextual_projected_dim"],
         lstm_hidden=arch["lstm_hidden"], dropout=arch["dropout"],
-        pretrained_syllable_matrix=None,  # checkpoint ghi đè toàn bộ, không cần PhoW2V thật để đo latency
+        pretrained_syllable_matrix=None,  # checkpoint overwrites everything, no need for real PhoW2V to measure latency
         freeze_syllable=arch["freeze_syllable"], freeze_contextual=arch["freeze_contextual"],
     ).to(device)
     model.load_state_dict(torch.load(checkpoint_path, map_location=device))
@@ -53,11 +53,11 @@ def main():
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--config", type=Path, default=Path("config/hyperparams.yaml"))
     parser.add_argument("--data-dir", type=Path, default=Path("UIT-ViSD4SA/iob"))
-    parser.add_argument("--n-docs", type=int, default=None, help="Giới hạn số câu test dùng để đo (mặc định: toàn bộ tập test)")
+    parser.add_argument("--n-docs", type=int, default=None, help="Cap the number of test sentences used for timing (default: whole test set)")
     parser.add_argument("--no-contextual", action="store_true",
-                         help="Tắt XLM-R -- PHẢI khớp đúng cấu hình lúc train checkpoint (chỉ dùng khi checkpoint cũng được train với --no-contextual)")
+                         help="Disable XLM-R -- MUST match this checkpoint's training config (only use if it was also trained with --no-contextual)")
     parser.add_argument("--lstm-hidden", type=int, default=None,
-                         help="Override lstm_hidden -- PHẢI khớp đúng cấu hình lúc train checkpoint")
+                         help="Override lstm_hidden -- MUST match this checkpoint's training config")
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
 
@@ -69,7 +69,7 @@ def main():
     if args.lstm_hidden is not None:
         arch["lstm_hidden"] = args.lstm_hidden
     lat_cfg = cfg["inference_latency"]
-    assert lat_cfg["batch_size"] == 1, "Script này CHỈ đo ở batch_size=1 theo đúng config -- xem docstring."
+    assert lat_cfg["batch_size"] == 1, "This script measures at batch_size=1 per the config only -- see docstring."
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vocab = load_vocab(args.data_dir / "vocab.json")
@@ -85,7 +85,7 @@ def main():
     if args.out is not None:
         with open(args.out, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
-        print(f"\nĐã lưu: {args.out}")
+        print(f"\nSaved: {args.out}")
 
 
 if __name__ == "__main__":

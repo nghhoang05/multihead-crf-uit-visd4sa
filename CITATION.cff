@@ -1,13 +1,13 @@
-# CITATION.cff -- cho phép GitHub tự hiện nút "Cite this repository".
-# Xem đặc tả đầy đủ: https://citation-file-format.github.io
+# CITATION.cff -- lets GitHub show a "Cite this repository" button.
+# Full spec: https://citation-file-format.github.io
 #
-# LƯU Ý: kiểm tra lại đúng chính tả "title" (đoạn dán vào bị mất chữ cái đầu, đã tự
-# suy luận là "Decoupled..." -- xác nhận lại với bản thảo D044 trước khi push).
+# NOTE: double-check the "title" spelling before pushing (reconstructed from a
+# pasted excerpt that was missing its first letter).
 cff-version: 1.2.0
-message: "Nếu dùng code trong repo này, vui lòng trích dẫn theo thông tin dưới đây."
+message: "If you use the code in this repository, please cite it as below."
 title: "Decoupled CRF Architecture with a Shared Encoder for Span Detection in Vietnamese Aspect-Based Sentiment Analysis"
 version: 1.0.0
-date-released: "TODO: điền ngày tạo release GitHub (định dạng YYYY-MM-DD)"
+date-released: "TODO: fill in the GitHub release date (YYYY-MM-DD)"
 authors:
   - family-names: "Nguyen"
     given-names: "Huy-Hoang"
@@ -26,7 +26,7 @@ authors:
     email: "phucnq@uel.edu.vn"
     affiliation: "Faculty of Information Systems, University of Economics and Law, Ho Chi Minh City, Vietnam"
 repository-code: "https://github.com/nghhoang05/multihead-crf-uit-visd4sa"
-doi: "TODO: điền DOI Zenodo sau khi tạo Release + archive (dạng 10.5281/zenodo.XXXXXXX)"
+doi: "TODO: fill in the Zenodo DOI once the release is archived (format 10.5281/zenodo.XXXXXXX)"
 license: MIT
 keywords:
   - aspect-based sentiment analysis
@@ -35,7 +35,7 @@ keywords:
   - CRF
   - multi-head
 abstract: >
-  Code kèm bài báo D044: mô hình đề xuất dùng shared encoder (syllable +
-  character CharLSTM + XLM-R-large) và 2 nhánh CRF độc lập (aspect +
-  polarity) cho bài toán span detection trong phân tích cảm xúc theo khía
-  cạnh (ABSA) tiếng Việt, trên bộ dữ liệu UIT-ViSD4SA.
+  Code for a decoupled CRF architecture: a shared encoder (syllable +
+  character CharLSTM + XLM-R-large) feeding two independent CRF heads
+  (aspect + polarity) for span detection in Vietnamese aspect-based
+  sentiment analysis, evaluated on the UIT-ViSD4SA dataset.

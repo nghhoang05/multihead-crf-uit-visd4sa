@@ -189,7 +189,7 @@ check(
     "history" in mh_train_result and len(mh_train_result["history"]) == 1,
     str(mh_train_result),
 )
-check("train_model logs mixed precision as OFF on CPU (correct auto-detection)", any("tắt" in line for line in quiet_log_mh))
+check("train_model logs mixed precision as OFF on CPU (correct auto-detection)", any("off" in line for line in quiet_log_mh))
 
 pg_mh = _build_multihead_param_groups(toy_model, lr=1e-3, xlmr_lr=2e-5, weight_decay=1e-2)
 check(

@@ -150,7 +150,7 @@ def predict_dataset(model, loader, vocab: dict, device: torch.device, use_amp: b
                     "merge_stats": merge_stats,
                 })
     if n_oom_skipped:
-        log_fn(f"  !! CUDA OOM: {n_oom_skipped} tài liệu bị bỏ qua khỏi lần đánh giá này (không tính vào P/R/F1).")
+        log_fn(f"  !! CUDA OOM: {n_oom_skipped} document(s) skipped from this evaluation (not counted in P/R/F1).")
     if collect_details:
         return gold_all, pred_all, doc_ids_all, details_all
     return gold_all, pred_all, doc_ids_all
@@ -200,8 +200,8 @@ def train_model(
     param_groups = _build_multihead_param_groups(model, lr=lr, xlmr_lr=xlmr_lr, weight_decay=weight_decay)
     trainable_params = [p for group in param_groups for p in group["params"]]
     optimizer = torch.optim.AdamW(param_groups)
-    log_fn(f"Mixed precision (fp16): {'BẬT' if amp_enabled else 'tắt (không phải CUDA hoặc use_amp=False)'}"
-           f" | weight_decay={weight_decay} chỉ áp cho 2 CRF (Eq. 11 bài báo), phần còn lại weight_decay=0")
+    log_fn(f"Mixed precision (fp16): {'ON' if amp_enabled else 'off (not CUDA or use_amp=False)'}"
+           f" | weight_decay={weight_decay} applied only to the 2 CRFs (Eq. 11 in the paper), 0 elsewhere")
 
     history = []
     best_macro_f1 = -1.0
@@ -236,11 +236,11 @@ def train_model(
                     scaler.update()  # resets GradScaler's stuck UNSCALED state after a mid-step OOM
                 del batch
                 torch.cuda.empty_cache()
-                log_fn(f"  !! CUDA OOM ở 1 batch (epoch {epoch}), đã bỏ qua batch này và tiếp tục.")
+                log_fn(f"  !! CUDA OOM on 1 batch (epoch {epoch}), skipped and continuing.")
         train_loss = total_loss / max(n_batches, 1)
         train_time = time.time() - t0
         if n_oom_skipped:
-            log_fn(f"  -> Tổng {n_oom_skipped} batch bị bỏ qua vì OOM trong epoch {epoch}.")
+            log_fn(f"  -> {n_oom_skipped} batch(es) skipped due to OOM in epoch {epoch}.")
 
         t0 = time.time()
         gold, pred, _ = predict_dataset(model, dev_loader, vocab, device, use_amp=use_amp, log_fn=log_fn)
@@ -262,6 +262,6 @@ def train_model(
             best_macro_f1 = dev_metrics["macro"]["f1"]
             if checkpoint_path is not None:
                 torch.save(model.state_dict(), checkpoint_path)
-                log_fn(f"  -> dev macro-F1 cải thiện, đã lưu checkpoint: {checkpoint_path}")
+                log_fn(f"  -> dev macro-F1 improved, saved checkpoint: {checkpoint_path}")
 
     return {"history": history, "best_dev_macro_f1": best_macro_f1}

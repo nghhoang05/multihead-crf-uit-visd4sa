@@ -1,7 +1,7 @@
-# Phiên bản đã dùng để phát triển/kiểm thử code trong repo này. LƯU Ý: huấn luyện thật
-# (cho ra số liệu báo cáo trong bài) chạy trên Google Colab, môi trường không lưu lại log
-# version chính xác -- các version dưới đây đã verify chạy đúng (smoke test pass) nhưng
-# CHƯA xác nhận bit-for-bit khớp version tạo ra số liệu trong bài.
+# Versions used to develop/test the code in this repo. NOTE: the actual training runs
+# (that produced the reported numbers) ran on Google Colab, which doesn't log exact
+# package versions -- the versions below are verified to run correctly (smoke tests
+# pass) but are NOT confirmed to be bit-for-bit identical to the training environment.
 
 torch==2.7.0
 numpy==2.2.3

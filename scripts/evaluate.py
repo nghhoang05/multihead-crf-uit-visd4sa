@@ -40,12 +40,12 @@ def main():
     parser.add_argument("--data-dir", type=Path, default=Path("UIT-ViSD4SA/iob"))
     parser.add_argument("--phow2v-dir", type=Path, default=Path("phow2v/extracted"))
     parser.add_argument("--no-pretrained-syllable", action="store_true",
-                         help="Bỏ qua nạp PhoW2V -- AN TOÀN cho eval (checkpoint đã ghi đè toàn bộ trọng số embedding, không cần ma trận pretrained gốc)")
+                         help="Skip loading PhoW2V -- SAFE for eval (the checkpoint already overwrote all embedding weights)")
     parser.add_argument("--no-contextual", action="store_true",
-                         help="Tắt XLM-R -- PHẢI khớp đúng cấu hình lúc train checkpoint này (chỉ dùng khi checkpoint cũng được train với --no-contextual)")
+                         help="Disable XLM-R -- MUST match this checkpoint's training config (only use if it was also trained with --no-contextual)")
     parser.add_argument("--lstm-hidden", type=int, default=None,
-                         help="Override lstm_hidden -- PHẢI khớp đúng cấu hình lúc train checkpoint này")
-    parser.add_argument("--out", type=Path, default=None, help="Lưu kết quả JSON (mặc định: in ra màn hình, không lưu)")
+                         help="Override lstm_hidden -- MUST match this checkpoint's training config")
+    parser.add_argument("--out", type=Path, default=None, help="Save results as JSON (default: print only, no save)")
     args = parser.parse_args()
 
     with open(args.config, encoding="utf-8") as f:
@@ -103,7 +103,7 @@ def main():
     if args.out is not None:
         with open(args.out, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
-        print(f"Đã lưu: {args.out}")
+        print(f"Saved: {args.out}")
 
 
 if __name__ == "__main__":

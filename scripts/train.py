@@ -127,14 +127,14 @@ def main():
     parser.add_argument("--config", type=Path, default=Path("config/hyperparams.yaml"))
     parser.add_argument("--data-dir", type=Path, default=Path("UIT-ViSD4SA/iob"))
     parser.add_argument("--phow2v-dir", type=Path, default=Path("phow2v/extracted"),
-                         help="Thư mục PhoW2V đã giải nén (bỏ qua nếu --no-pretrained-syllable)")
+                         help="Extracted PhoW2V directory (ignored with --no-pretrained-syllable)")
     parser.add_argument("--output-dir", type=Path, default=Path("."))
-    parser.add_argument("--seeds", type=int, nargs="+", default=None, help="Mặc định: seeds trong config/hyperparams.yaml")
-    parser.add_argument("--epochs", type=int, default=None, help="Override số epoch (mặc định: theo config)")
-    parser.add_argument("--no-contextual", action="store_true", help="Tắt XLM-R -- CHỈ để test nhanh trên CPU, KHÔNG dùng để tái lập kết quả bài báo")
-    parser.add_argument("--no-pretrained-syllable", action="store_true", help="Không dùng PhoW2V (random-init) -- CHỈ để test nhanh")
-    parser.add_argument("--lstm-hidden", type=int, default=None, help="Override lstm_hidden -- CHỈ để test nhanh")
-    parser.add_argument("--max-train-docs", type=int, default=None, help="Giới hạn số tài liệu train (test nhanh, KHÔNG dùng để tái lập kết quả)")
+    parser.add_argument("--seeds", type=int, nargs="+", default=None, help="Default: seeds from config/hyperparams.yaml")
+    parser.add_argument("--epochs", type=int, default=None, help="Override epoch count (default: from config)")
+    parser.add_argument("--no-contextual", action="store_true", help="Disable XLM-R -- for quick CPU testing ONLY, do NOT use to reproduce paper results")
+    parser.add_argument("--no-pretrained-syllable", action="store_true", help="Skip PhoW2V (random-init) -- for quick testing ONLY")
+    parser.add_argument("--lstm-hidden", type=int, default=None, help="Override lstm_hidden -- for quick testing ONLY")
+    parser.add_argument("--max-train-docs", type=int, default=None, help="Cap the number of training documents (quick testing, do NOT use to reproduce results)")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -165,7 +165,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(arch["contextual_model_name"]) if arch["use_contextual"] else None
 
     if args.max_train_docs is not None:
-        print(f"!! --max-train-docs đang BẬT: chỉ dùng {args.max_train_docs} tài liệu train -- KHÔNG dùng kết quả này để báo cáo.")
+        print(f"!! --max-train-docs is ON: using only {args.max_train_docs} training documents -- do NOT report this result.")
 
     loaders = build_multihead_loaders(vocab, args.data_dir, tokenizer, cfg["data"]["token_budget"], arch["use_contextual"], args.max_train_docs)
     print(f"train={len(loaders[0]):,}  dev={len(loaders[1]):,}  test={len(loaders[2]):,}")
@@ -177,7 +177,7 @@ def main():
         )
         print(f"TEST (seed={seed}) -> micro F1={results_payload['test_micro']['f1']:.4f}  "
               f"macro F1={results_payload['test_macro']['f1']:.4f}")
-        print(f"Đã lưu: {results_path} | {checkpoint_path}")
+        print(f"Saved: {results_path} | {checkpoint_path}")
 
 
 if __name__ == "__main__":

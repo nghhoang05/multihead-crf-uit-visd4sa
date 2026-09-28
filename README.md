@@ -1,68 +1,69 @@
-# CRF Multi-Head — Span Detection cho ABSA tiếng Việt (UIT-ViSD4SA)
+# CRF Multi-Head — Span Detection for Vietnamese ABSA (UIT-ViSD4SA)
 
-Code kèm bài báo **D044**: mô hình đề xuất dùng shared encoder (syllable + character CharLSTM +
-XLM-R-large) và 2 nhánh CRF độc lập (aspect + polarity) cho bài toán span detection trong phân tích
-cảm xúc theo khía cạnh (ABSA) tiếng Việt, trên bộ dữ liệu UIT-ViSD4SA — mở rộng từ Nguyen et al.
-(2021), PACLIC 35, *"Span Detection for Aspect-Based Sentiment Analysis in Vietnamese"*.
+Code for **"Decoupled CRF Architecture with a Shared Encoder for Span Detection in Vietnamese
+Aspect-Based Sentiment Analysis"**: a shared encoder (syllable + character CharLSTM + XLM-R-large)
+feeding two independent CRF heads (aspect + polarity) for span detection in Vietnamese aspect-based
+sentiment analysis (ABSA), on the UIT-ViSD4SA dataset — extending Nguyen et al. (2021), PACLIC 35,
+*"Span Detection for Aspect-Based Sentiment Analysis in Vietnamese"*.
 
-## Kiến trúc
+## Architecture
 
 ```
-Input câu (syllable + char + XLM-R)
+Input sentence (syllable + char + XLM-R)
         │
-   Embedding fusion (syllable PhoW2V 100d + char-BiLSTM 100d + XLM-R-large chiếu 100d)
+   Embedding fusion (syllable PhoW2V 100d + char-BiLSTM 100d + XLM-R-large projected to 100d)
         │
-   BiLSTM (400 chiều/hướng)
+   BiLSTM (400 dims/direction)
         │
         ▼
   ┌─────────────┐         ┌──────────────────┐
   │ CRF aspect   │         │ CRF polarity     │
-  │ (21 nhãn)    │         │ (7 nhãn)         │
+  │ (21 tags)    │         │ (7 tags)         │
   └──────┬───────┘         └────────┬─────────┘
          └───────────┬──────────────┘
                       ▼
         merge_aspect_polarity_spans
 ```
 
-## Cấu trúc repo
+## Repo structure
 
 ```
-config/hyperparams.yaml   Siêu tham số (khớp tab:hyperparams-shared)
+config/hyperparams.yaml   Hyperparameters (matches tab:hyperparams-shared)
 scripts/
-  prepare_data.py         Chuyển UIT-ViSD4SA gốc -> IOB + vocab
-  train.py                CLI huấn luyện mô hình đề xuất
-  evaluate.py              Đánh giá lại 1 checkpoint (Exact Match F1 + merge-stats)
-  measure_latency.py       Đo độ trễ suy luận batch_size=1
-  smoke_test_multihead_model.py   Kiểm thử nhanh (CPU, không cần GPU/data thật)
+  prepare_data.py         Converts raw UIT-ViSD4SA -> IOB + vocab
+  train.py                CLI to train the proposed model
+  evaluate.py              Re-evaluates a checkpoint (Exact Match F1 + merge stats)
+  measure_latency.py       Measures inference latency at batch_size=1
+  smoke_test_multihead_model.py   Quick test (CPU, no GPU/real data needed)
 src/                       Model + training + data + evaluation
-UIT-ViSD4SA/iob/vocab.json  Vocab đã dựng sẵn (KHÔNG chứa văn bản gốc)
+UIT-ViSD4SA/iob/vocab.json  Pre-built vocab (contains no raw text)
 ```
 
-## Cài đặt
+## Installation
 
 ```bash
-git clone <URL repo này>
+git clone <this repo's URL>
 cd multihead-crf-uit-visd4sa
 pip install -r requirements.txt
 ```
 
-## Dữ liệu
+## Data
 
-**UIT-ViSD4SA**: 35.396 span đã gán nhãn thủ công trên 11.122 bình luận điện thoại tiếng Việt, 10
-khía cạnh × 3 cực tính. Nguồn: https://github.com/kimkim00/UIT-ViSD4SA
+**UIT-ViSD4SA**: 35,396 manually-labeled spans over 11,122 Vietnamese phone-review comments, 10
+aspects × 3 polarities. Source: https://github.com/kimkim00/UIT-ViSD4SA
 
-Repo này không commit dữ liệu đã chuyển đổi (`UIT-ViSD4SA/iob/{train,dev,test}.json`) — dữ liệu của
-bên thứ ba, chỉ yêu cầu trích dẫn khi dùng. Chỉ `vocab.json` được commit sẵn.
+This repo does not commit the converted data (`UIT-ViSD4SA/iob/{train,dev,test}.json`) — third-party
+data, citation required. Only `vocab.json` is committed.
 
 ```bash
 git clone https://github.com/kimkim00/UIT-ViSD4SA.git UIT-ViSD4SA-raw
 python scripts/prepare_data.py --raw-dir UIT-ViSD4SA-raw/data --out-dir UIT-ViSD4SA/iob
 ```
 
-Cần thêm **PhoW2V** (syllable embedding pretrained, ~458MB, https://github.com/datquocnguyen/PhoW2V)
-giải nén vào 1 thư mục, trỏ `--phow2v-dir` khi chạy `scripts/train.py`.
+Also needs **PhoW2V** (pretrained syllable embedding, ~458MB, https://github.com/datquocnguyen/PhoW2V)
+extracted into a directory, pointed to via `--phow2v-dir` when running `scripts/train.py`.
 
-**Trích dẫn bắt buộc** nếu dùng dữ liệu UIT-ViSD4SA:
+**Citation required** if using the UIT-ViSD4SA data:
 ```bibtex
 @inproceedings{thanh-etal-2021-span,
     title = "Span Detection for Aspect-Based Sentiment Analysis in Vietnamese",
@@ -74,38 +75,39 @@ giải nén vào 1 thư mục, trỏ `--phow2v-dir` khi chạy `scripts/train.py
 }
 ```
 
-## Chạy huấn luyện / đánh giá / đo latency
+## Training / evaluation / latency
 
 ```bash
-# Huấn luyện (5 seed cố định, đọc siêu tham số từ config/hyperparams.yaml)
+# Train (5 fixed seeds, hyperparameters from config/hyperparams.yaml)
 python scripts/train.py --seeds 42 123 777 2024 2025
 
-# Đánh giá lại 1 checkpoint (Exact Match F1 + default-assignment/orphan rate)
+# Re-evaluate a checkpoint (Exact Match F1 + default-assignment/orphan rate)
 python scripts/evaluate.py --checkpoint checkpoint_multihead_seed42.pt
 
-# Đo độ trễ suy luận, batch_size=1
+# Measure inference latency at batch_size=1
 python scripts/measure_latency.py --checkpoint checkpoint_multihead_seed42.pt
 ```
 
-`train.py` in ra trực tiếp macro-F1/micro-F1 trên tập test, đối chiếu với **45.63% ± 0.74 macro-F1,
-59.84% ± 0.77 micro-F1** đã báo cáo trong bài (cần chạy đủ 5 seed trên GPU để xác nhận lại số liệu
-này — `--seeds`/`--epochs`/`--no-contextual` xem `--help` của từng script).
+`train.py` prints macro-F1/micro-F1 on the test set directly, to compare against the paper's reported
+**45.63% ± 0.74 macro-F1, 59.84% ± 0.77 micro-F1** (requires running all 5 seeds on GPU to confirm —
+see `--help` on each script for `--seeds`/`--epochs`/`--no-contextual`).
 
-## Kiểm thử
+## Testing
 
 ```bash
 python scripts/smoke_test_multihead_model.py
 ```
-Không cần GPU/mạng — kiểm tra `merge_aspect_polarity_spans`, forward/backward của
-`BiLSTMMultiHeadCRFTagger`, và (nếu đã có dữ liệu) 1 vòng huấn luyện + suy luận trên dữ liệu thật.
+No GPU/network required — checks `merge_aspect_polarity_spans`, `BiLSTMMultiHeadCRFTagger`'s
+forward/backward pass, and (if data is available) one training + inference round on real data.
 
-## Lưu ý khi tái lập
+## Notes on reproduction
 
-Mô hình LUÔN chạy đủ `epochs` trong config (mặc định 30), không early stopping. Dữ liệu chuyển đổi
-bằng `scripts/prepare_data.py` có thể lệch nhẹ 1 tài liệu so với bản gốc dùng để báo cáo kết quả
-(thiếu 1 bước sửa lỗi offset thủ công của dự án gốc, không nằm trong repo này).
+The model always runs the full `epochs` from the config (no early stopping). Data converted via
+`scripts/prepare_data.py` may differ slightly (by one document) from the original data used to
+produce the reported results (missing a manual offset-fix step from the original project, not
+included in this repo).
 
-## Giấy phép & Trích dẫn
+## License & Citation
 
-Mã nguồn: [LICENSE](LICENSE) (MIT). Trích dẫn repo này: [CITATION.cff](CITATION.cff). Dữ liệu
-UIT-ViSD4SA và PhoW2V thuộc bản quyền tác giả gốc — xem mục Dữ liệu ở trên.
+Source code: [LICENSE](LICENSE) (MIT). Citing this repo: [CITATION.cff](CITATION.cff). The
+UIT-ViSD4SA data and PhoW2V belong to their original authors — see the Data section above.

@@ -80,7 +80,7 @@ def measure_latency_multihead(
 
     total_time = forward_time + spans_time + merge_time
     return {
-        "config": "mô hình đề xuất (2 CRF độc lập, 21+7 nhãn, CÓ hợp nhất)",
+        "config": "proposed model (2 independent CRFs, 21+7 tags, WITH merge)",
         "n_docs_timed": n_docs,
         "model_forward_ms_per_doc": forward_time / n_docs * 1000 if n_docs else 0.0,
         "spans_decode_ms_per_doc": spans_time / n_docs * 1000 if n_docs else 0.0,
@@ -93,15 +93,15 @@ def measure_latency_multihead(
 def print_latency_report(result: dict, log_fn=print) -> None:
     """Prints a per-stage latency breakdown, isolating `merge_ms` (the
     merge step's own cost) instead of only reporting a single total."""
-    log_fn(f"{'Giai đoạn':<40}{'ms/câu':>12}")
+    log_fn(f"{'Stage':<40}{'ms/sentence':>12}")
     for key, label in [
         ("model_forward_ms_per_doc", "Model forward (encoder + 2 CRF decode)"),
-        ("spans_decode_ms_per_doc", "Giải mã 2 chuỗi tag -> span"),
-        ("merge_ms_per_doc", "Hợp nhất 2 CRF (merge_aspect_polarity_spans)"),
-        ("total_ms_per_doc", "TỔNG"),
+        ("spans_decode_ms_per_doc", "Decode 2 tag sequences -> spans"),
+        ("merge_ms_per_doc", "Merge 2 CRFs (merge_aspect_polarity_spans)"),
+        ("total_ms_per_doc", "TOTAL"),
     ]:
         log_fn(f"{label:<40}{result[key]:>12.3f}")
-    log_fn(f"\nThông lượng: {result['docs_per_sec']:.2f} câu/giây "
-           f"(đo trên {result['n_docs_timed']} câu, batch_size=1)")
+    log_fn(f"\nThroughput: {result['docs_per_sec']:.2f} sentences/sec "
+           f"(measured on {result['n_docs_timed']} sentences, batch_size=1)")
     merge_share = (result["merge_ms_per_doc"] / result["total_ms_per_doc"] * 100) if result["total_ms_per_doc"] else 0.0
-    log_fn(f"Bước hợp nhất chiếm {merge_share:.1f}% tổng độ trễ/câu.")
+    log_fn(f"The merge step accounts for {merge_share:.1f}% of total per-sentence latency.")
