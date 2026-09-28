@@ -1,51 +1,49 @@
-# Siêu tham số cho mô hình đề xuất (2 CRF độc lập) -- khớp Bảng hyperparameter
-# đã công bố trong bài (tab:hyperparams-shared).
+# Hyperparameters for the proposed model (2 independent CRF heads) -- matches
+# the hyperparameter table published in the paper (tab:hyperparams-shared).
 #
-# File này là NGUỒN DUY NHẤT cho các giá trị dưới đây -- `scripts/train.py` đọc
-# trực tiếp từ đây, không hardcode lại ở nơi khác. Nếu cần đổi 1 giá trị, sửa
-# Ở ĐÂY rồi chạy lại `scripts/train.py`, không sửa riêng lẻ trong code.
+# Single source of truth: `scripts/train.py` reads directly from this file.
+# To change a value, edit it HERE and rerun `scripts/train.py`.
 
-# --- Kiến trúc encoder (dùng chung: syllable + character CharLSTM + XLM-R) ---
+# --- Encoder architecture (shared: syllable + character CharLSTM + XLM-R) ---
 architecture:
-  lstm_hidden: 400          # BiLSTM hidden size / chiều (BiLSTM 2 chiều -> 800 chiều output)
+  lstm_hidden: 400          # BiLSTM hidden size per direction (bidirectional -> 800-dim output)
   dropout: 0.33
   use_char: true
   use_contextual: true
   contextual_model_name: "xlm-roberta-large"
-  contextual_projected_dim: 100   # chiếu XLM-R về 100 chiều (Section 5.1: cả 3 phần embedding đều 100 chiều)
-  freeze_syllable: false          # PhoW2V syllable embedding: FINE-TUNE (không đóng băng)
-  freeze_contextual: false        # XLM-R: FINE-TUNE (không đóng băng)
-  syllable_pretrained_source: "PhoW2V_syllables_100dims"  # thay thế baomoi.zip gốc (đã chết link)
+  contextual_projected_dim: 100   # XLM-R projected to 100 dims (Section 5.1: all 3 embedding parts are 100-dim)
+  freeze_syllable: false          # PhoW2V syllable embedding: fine-tuned
+  freeze_contextual: false        # XLM-R: fine-tuned
+  syllable_pretrained_source: "PhoW2V_syllables_100dims"  # replaces the paper's dead baomoi.zip link
 
-# --- Dữ liệu / batching ---
+# --- Data / batching ---
 data:
-  token_budget: 5000        # dynamic token-budget batching (không phải batch cố định theo số câu)
+  token_budget: 5000        # dynamic token-budget batching, not a fixed sentence count
 
-# --- Tối ưu hoá ---
+# --- Optimizer ---
 optimizer:
   name: "AdamW"
-  lr: 1.0e-3                 # learning rate chính (mọi tham số trừ XLM-R)
-  xlmr_lr: 2.0e-5             # learning rate riêng, nhỏ hơn nhiều, cho XLM-R đang fine-tune
-  weight_decay: 1.0e-2        # CHỈ áp cho tham số CRF (Eq. 11 bài báo), phần còn lại weight_decay=0
+  lr: 1.0e-3                 # main learning rate (everything except XLM-R)
+  xlmr_lr: 2.0e-5             # separate, much smaller LR for fine-tuning XLM-R
+  weight_decay: 1.0e-2        # applied ONLY to CRF params (Eq. 11 in the paper), 0 elsewhere
   grad_clip: 5.0
 
-# --- Vòng lặp huấn luyện ---
+# --- Training loop ---
 training:
-  epochs: 30                 # LUÔN chạy đủ số epoch này -- KHÔNG early stopping
-                              # (xem src/multihead_training.py::train_model)
-  use_amp: true               # mixed precision (fp16) khi có CUDA, tự tắt trên CPU
-  checkpoint_selection: "dev_macro_f1_best"   # lưu checkpoint tại epoch có dev macro-F1 (exact span match) cao nhất
+  epochs: 30                 # always runs the full epoch count -- no early stopping
+                              # (see src/multihead_training.py::train_model)
+  use_amp: true               # mixed precision (fp16) on CUDA, auto-disabled on CPU
+  checkpoint_selection: "dev_macro_f1_best"   # save the checkpoint with the best dev macro-F1 (exact span match)
 
-# --- Seed để báo cáo mean +- std (Bảng III, IV, V) ---
+# --- Seeds for mean +- std reporting (Tables III, IV, V) ---
 seeds: [42, 123, 777, 2024, 2025]
 
-# --- Đo độ trễ suy luận (Section IV-B) ---
+# --- Inference latency (Section IV-B) ---
 inference_latency:
-  batch_size: 1               # ĐO RIÊNG với batch_size=1 (độ trễ 1 câu thực tế), KHÔNG dùng
-                               # token-budget batching của lúc huấn luyện/đánh giá F1
+  batch_size: 1               # measured at batch_size=1 (real per-sentence latency), not the
+                               # token-budget batching used for training/F1 evaluation
   n_warmup_batches: 5
   use_amp: true
 
-# Ghi chú: các giá trị KHÔNG có trích dẫn Section/Table/Equation cụ thể ở trên (lr, xlmr_lr,
-# epochs, checkpoint_selection...) là lựa chọn kỹ thuật của nhóm nghiên cứu, không phải số
-# bài báo quy định.
+# Note: values with no specific Section/Table/Equation citation above (lr, xlmr_lr, epochs,
+# checkpoint_selection...) are the team's own technical choices, not numbers mandated by the paper.

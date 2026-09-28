@@ -1,15 +1,15 @@
 """
-Đánh giá LẠI 1 checkpoint đã huấn luyện (không train lại) trên tập test:
-Exact Match F1 (micro/macro/per-class, đúng `src/evaluation.py::evaluate`) và
-tỉ lệ default-assignment + orphan-polarity (đúng công thức Section III-C,
+Re-evaluates a trained checkpoint (no retraining) on the test set: Exact
+Match F1 (micro/macro/per-class, `src/evaluation.py::evaluate`) and the
+default-assignment/orphan-polarity rates (Section III-C,
 `src/multihead_training.py::aggregate_merge_stats`).
 
-Cách dùng:
+Usage:
     python scripts/evaluate.py --checkpoint checkpoint_multihead_seed42.pt
 
-Kiến trúc model được dựng lại từ `config/hyperparams.yaml` (mặc định) --
-PHẢI khớp đúng kiến trúc đã dùng lúc huấn luyện checkpoint đó, nếu không
-`load_state_dict` sẽ báo lỗi shape mismatch rõ ràng.
+The model architecture is rebuilt from `config/hyperparams.yaml` (default)
+-- it MUST match the architecture used to train that checkpoint, or
+`load_state_dict` will raise a shape-mismatch error.
 """
 from __future__ import annotations
 
@@ -59,8 +59,8 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vocab = load_vocab(args.data_dir / "vocab.json")
 
-    # Checkpoint đã có toàn bộ trọng số đã học -- không cần PhoW2V thật (chỉ cần đúng SHAPE,
-    # random-init cũng được vì load_state_dict() sẽ ghi đè ngay sau đó).
+    # The checkpoint already has all learned weights -- no need for real PhoW2V vectors
+    # (only the SHAPE matters; random-init is fine since load_state_dict() overwrites it).
     syllable_matrix = None
     if not args.no_pretrained_syllable:
         kv = load_word2vec_vectors(args.phow2v_dir)

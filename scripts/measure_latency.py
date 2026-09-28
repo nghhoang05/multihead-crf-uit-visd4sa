@@ -1,12 +1,11 @@
 """
-Đo độ trễ suy luận của mô hình đề xuất (Section IV-B): 2 CRF độc lập 21+7
-nhãn, CÓ bước hợp nhất `merge_aspect_polarity_spans` -- **batch_size=1** (đo
-độ trễ THỰC TẾ 1 câu/lần, KHÔNG dùng dynamic token-budget batching của lúc
-huấn luyện/đánh giá F1, vốn cho throughput cao hơn nhờ xử lý song song nhiều
-câu). In riêng từng giai đoạn (model forward, giải mã span, hợp nhất) để
-biết bước hợp nhất tốn bao nhiêu chi phí tuyệt đối.
+Measures inference latency of the proposed model (Section IV-B), 2
+independent CRF heads with the `merge_aspect_polarity_spans` step --
+**batch_size=1** (real per-sentence latency, not the dynamic token-budget
+batching used for training/F1 evaluation). Prints a per-stage breakdown
+(model forward, span decode, merge) to show the merge step's own cost.
 
-Cách dùng:
+Usage:
     python scripts/measure_latency.py --checkpoint checkpoint_multihead_seed42.pt
 """
 from __future__ import annotations

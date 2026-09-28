@@ -1,22 +1,19 @@
 """
-Chuyển đổi UIT-ViSD4SA (định dạng jsonl gốc) sang syllable-level IOB + vocab
-mà `src/multihead_dataset.py`/`src/span_dataset.py` cần. Không commit sẵn
-`train.json`/`dev.json`/`test.json` vào repo: UIT-ViSD4SA là dữ liệu nghiên
-cứu của bên thứ 3 (Nguyen et al., PACLIC 2021,
-https://github.com/kimkim00/UIT-ViSD4SA), chỉ yêu cầu trích dẫn khi dùng --
-người dùng tự tải dữ liệu gốc rồi chạy script này.
+Converts UIT-ViSD4SA (original jsonl format) into the syllable-level IOB +
+vocab that `src/multihead_dataset.py`/`src/span_dataset.py` need.
+`train.json`/`dev.json`/`test.json` are not committed to this repo (third-
+party research data, citation required) -- download the raw data yourself
+and run this script.
 
-Cách dùng:
-    1. Tải 3 file `train.jsonl`/`dev.jsonl`/`test.jsonl` từ
-       https://github.com/kimkim00/UIT-ViSD4SA (đọc README của repo đó để
-       biết đường dẫn/tên file chính xác tại thời điểm bạn tải).
-    2. Đặt cả 3 file vào 1 thư mục, ví dụ `raw_data/`.
-    3. Chạy:
+Usage:
+    1. Download `train.jsonl`/`dev.jsonl`/`test.jsonl` from
+       https://github.com/kimkim00/UIT-ViSD4SA.
+    2. Put all 3 files in one directory, e.g. `raw_data/`.
+    3. Run:
          python scripts/prepare_data.py --raw-dir raw_data --out-dir UIT-ViSD4SA/iob
 
-Định dạng mỗi dòng jsonl gốc: {"text": "...", "labels": [[start, end, "ASPECT#POLARITY"], ...]}
-(không có "doc_id" -- script này tự sinh theo quy ước "<split>_<i>", khớp
-đúng quy ước `doc_id` mà dự án gốc dùng).
+Each raw jsonl line: {"text": "...", "labels": [[start, end, "ASPECT#POLARITY"], ...]}
+(no "doc_id" -- this script generates one as "<split>_<i>").
 """
 from __future__ import annotations
 

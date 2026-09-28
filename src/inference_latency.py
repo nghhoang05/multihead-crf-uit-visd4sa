@@ -1,13 +1,13 @@
 """
-Đo chi phí suy luận (latency) của mô hình đề xuất, tách riêng từng giai đoạn
-(đồng bộ CUDA trước/sau mỗi giai đoạn để đo chính xác):
-  - `model_forward_ms`: embedding fusion + BiLSTM + Viterbi decode 2 CRF
-  - `spans_decode_ms`: chuyển 2 chuỗi tag id thành span (2 lần, 1 lần/head)
-  - `merge_ms`: `merge_aspect_polarity_spans` -- chi phí riêng của bước hợp nhất
-  - `total_ms`/`docs_per_sec`: tổng cả 3 giai đoạn trên
+Measures inference latency of the proposed model, broken into stages
+(CUDA-synced before/after each stage for accurate timing):
+  - `model_forward_ms`: embedding fusion + BiLSTM + Viterbi decode (2 CRFs)
+  - `spans_decode_ms`: tag ids -> spans (twice, once per head)
+  - `merge_ms`: `merge_aspect_polarity_spans` -- the merge step's own cost
+  - `total_ms`/`docs_per_sec`: sum of the 3 stages above
 
-`n_warmup_batches` loại các batch đầu khỏi số đo (lần forward đầu qua XLM-R
-tốn thêm thời gian biên dịch kernel, không đại diện cho latency ổn định).
+`n_warmup_batches` excludes the first few batches from timing (XLM-R's
+first forward pass pays a one-off kernel-compile cost).
 """
 from __future__ import annotations
 
@@ -29,10 +29,9 @@ def measure_latency_multihead(
     model, loader, aspect_tag_vocab, polarity_tag_vocab, device: torch.device,
     n_warmup_batches: int = 2, n_timed_batches: int | None = None, use_amp: bool = True,
 ) -> dict:
-    """Đo latency của mô hình đề xuất (`BiLSTMMultiHeadCRFTagger`, 2 CRF độc
-    lập 21+7 nhãn) -- tách riêng `spans_decode_ms` (2x `bio_to_spans`) và
-    `merge_ms` (`merge_aspect_polarity_spans`) để biết rõ từng phần cộng
-    thêm bao nhiêu, không gộp chung thành 1 con số "hậu xử lý" mập mờ."""
+    """Measures latency of the proposed model (2 independent CRF heads),
+    timing `spans_decode_ms` and `merge_ms` separately from the model
+    forward pass so each stage's cost is visible on its own."""
     from src.multihead_training import merge_aspect_polarity_spans, move_batch_to_device
     from src.span_detection import bio_to_spans
 
@@ -92,9 +91,8 @@ def measure_latency_multihead(
 
 
 def print_latency_report(result: dict, log_fn=print) -> None:
-    """In bảng chi tiết latency của mô hình đề xuất, RÀNH MẠCH từng giai
-    đoạn thay vì chỉ 1 con số "tổng" mập mờ -- đặc biệt làm rõ `merge_ms`
-    (chi phí RIÊNG của bước hợp nhất 2 CRF) so với phần còn lại."""
+    """Prints a per-stage latency breakdown, isolating `merge_ms` (the
+    merge step's own cost) instead of only reporting a single total."""
     log_fn(f"{'Giai đoạn':<40}{'ms/câu':>12}")
     for key, label in [
         ("model_forward_ms_per_doc", "Model forward (encoder + 2 CRF decode)"),

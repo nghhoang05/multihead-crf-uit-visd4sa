@@ -1,14 +1,14 @@
 """
-CLI huấn luyện mô hình đề xuất (`BiLSTMMultiHeadCRFTagger`, 2 CRF độc lập
-21+7 nhãn) -- đọc toàn bộ siêu tham số từ `config/hyperparams.yaml`, gọi
-thẳng `src/multihead_training.py` (không viết lại logic huấn luyện/model).
+CLI to train the proposed model (`BiLSTMMultiHeadCRFTagger`, 2 independent
+CRF heads) -- reads all hyperparameters from `config/hyperparams.yaml` and
+calls `src/multihead_training.py` directly (no duplicated training/model logic).
 
-Cách dùng:
+Usage:
     python scripts/train.py --seeds 42 123 777 2024 2025
 
-Yêu cầu trước khi chạy: đã có `UIT-ViSD4SA/iob/{train,dev,test,vocab}.json`
-(chạy `scripts/prepare_data.py` trước nếu chưa có) và đã tải + giải nén
-PhoW2V (`--phow2v-dir`, xem README.md).
+Requires `UIT-ViSD4SA/iob/{train,dev,test,vocab}.json` (run
+`scripts/prepare_data.py` first) and PhoW2V downloaded + extracted
+(`--phow2v-dir`, see README.md).
 """
 from __future__ import annotations
 
@@ -45,8 +45,8 @@ def build_multihead_loaders(vocab, iob_dir: Path, tokenizer, token_budget: int, 
     collate = MultiHeadCollator(vocab, tokenizer=tokenizer, use_contextual=use_contextual)
 
     if max_train_docs is not None:
-        # Cắt bớt TRƯỚC KHI tính train_lengths/dựng sampler -- cắt sau khi đã dựng
-        # TokenBudgetBatchSampler (tính từ độ dài đầy đủ) sẽ sinh index ngoài phạm vi.
+        # Truncate BEFORE computing train_lengths/building the sampler -- truncating
+        # after would leave TokenBudgetBatchSampler yielding out-of-range indices.
         train_ds.docs = train_ds.docs[:max_train_docs]
 
     train_lengths = [len(d["tokens"]) for d in train_ds.docs]
