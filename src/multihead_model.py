@@ -103,11 +103,10 @@ class BiLSTMMultiHeadCRFTagger(nn.Module):
         return loss_aspect, loss_polarity
 
     def loss(self, batch: dict) -> torch.Tensor:
-        """Sum of both CRFs' negative log-likelihoods, unweighted (both are
-        "equally important" sub-questions of the original combined tagging
-        problem, unlike e.g. Span-ViSD's `mention_loss_weight`, which scales
-        an auxiliary filtering objective against the main classification
-        one -- here both heads ARE the main objective)."""
+        """Sum of both CRFs' negative log-likelihoods, unweighted -- aspect
+        and polarity are "equally important" sub-questions of the original
+        combined tagging problem, both heads ARE the main objective, so
+        neither loss term is scaled relative to the other."""
         loss_aspect, loss_polarity = self.loss_components(batch)
         return loss_aspect + loss_polarity
 
