@@ -1,10 +1,7 @@
 """
 Smoke test for the CRF multi-head span detection model (src/multihead_model.py,
-src/multihead_dataset.py, src/multihead_training.py) -- configuration #2 in
-this project's 3-way span-detection ablation (baseline single-head CRF vs.
-CRF multi-head vs. span-enumeration multi-head/Span-ViSD). No GPU/network
-required (use_contextual=False throughout, matching the convention in
-scripts/smoke_test_pipeline.py and scripts/smoke_test_span_model.py).
+src/multihead_dataset.py, src/multihead_training.py). No GPU/network
+required (use_contextual=False throughout).
 Run: python scripts/smoke_test_multihead_model.py
 """
 from __future__ import annotations

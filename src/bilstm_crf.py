@@ -1,7 +1,8 @@
 """
-BiLSTM-CRF with embedding fusion for UIT-ViSD4SA span detection, reproducing
-the architecture of Nguyen et al. (2021, PACLIC 35) "Span Detection for
-Aspect-Based Sentiment Analysis in Vietnamese":
+Shared encoder (embedding fusion) and CRF building blocks reused by
+`src/multihead_model.py::BiLSTMMultiHeadCRFTagger`, reproducing the
+architecture of Nguyen et al. (2021, PACLIC 35) "Span Detection for
+Aspect-Based Sentiment Analysis in Vietnamese" up through the BiLSTM step:
 
     [syllable embedding (100d) | char-BiLSTM embedding (100d) | XLM-R embedding, projected to 100d]
         --> BiLSTM(hidden=400/direction) --> Linear --> CRF
@@ -39,10 +40,10 @@ see the conversation log and notebook 08's intro):
     encoder contributing only generic representations was suspected to cap
     performance the same way frozen PhoW2V did. Fine-tuning XLM-R needs a
     MUCH smaller learning rate than the rest of the model or it destroys
-    the pretrained weights in a few steps -- `src/training.py::train_model`
-    uses a separate low-LR parameter group for exactly this reason. The
-    frozen behavior is still available via freeze_contextual=True for
-    comparison/ablation.
+    the pretrained weights in a few steps -- `src/multihead_training.py::
+    train_model` uses a separate low-LR parameter group for exactly this
+    reason. The frozen behavior is still available via
+    freeze_contextual=True for comparison/ablation.
   - CRF is a from-scratch, dependency-light implementation (no torchcrf/
     flair) since those failed to install cleanly in this environment.
 """
@@ -386,86 +387,3 @@ class CRF(nn.Module):
             path.reverse()
             best_paths.append(path)
         return best_paths
-
-
-# ---------------------------------------------------------------------------
-# Full tagger: EmbeddingFusion -> BiLSTM -> Linear -> CRF
-# ---------------------------------------------------------------------------
-class BiLSTMCRFTagger(nn.Module):
-    def __init__(
-        self,
-        syllable_vocab_size: int,
-        char_vocab_size: int,
-        num_tags: int,
-        use_char: bool = True,
-        use_contextual: bool = True,
-        contextual_model_name: str = "xlm-roberta-base",
-        contextual_projected_dim: int | None = 100,
-        lstm_hidden: int = 400,
-        dropout: float = 0.33,
-        pad_idx: int = 0,
-        tag_pad_idx: int = 0,
-        pretrained_syllable_matrix: torch.Tensor | None = None,
-        freeze_syllable: bool = False,
-        freeze_contextual: bool = False,
-        crf_cls: type = None,
-        fusion_cls: type = None,
-    ):
-        """`pad_idx` is the PAD index in the syllable/char vocabs (embedding
-        padding_idx); `tag_pad_idx` is the PAD index in the TAG vocab (a
-        separate id space) -- both are 0 by this project's `Vocab` convention
-        (see `src/span_dataset.py`), but kept as distinct parameters since
-        they need not coincide in general. `pretrained_syllable_matrix` /
-        `freeze_syllable` / `freeze_contextual` / `contextual_projected_dim`
-        are forwarded to `EmbeddingFusion` -- see its docstring.
-
-        `crf_cls` (default `None` -> the plain `CRF` above): lets a subclass
-        swap in a CRF variant with the SAME forward-algorithm/Viterbi-decode
-        behavior but a different loss reduction -- e.g. `src/focal_crf.py::
-        FocalCRF`, which adds a focal-reweighted NLL method without changing
-        `_forward_alg`/`_score_sentence`/`decode` at all. Existing callers
-        that don't pass this keep the exact same plain-`CRF` behavior as
-        before this parameter was added.
-
-        `fusion_cls` (default `None` -> the plain `EmbeddingFusion` above):
-        same idea, for the embedding fusion -- lets a subclass swap in a
-        fusion variant that accepts this SAME call signature but changes
-        what happens INSIDE one branch, e.g. `src/char_cnn_fusion.py::
-        CharCNNEmbeddingFusion` (CharCNN instead of CharLSTM for the
-        character branch, same early-fusion concatenation strategy).
-        Existing callers that don't pass this keep the exact same plain-
-        `EmbeddingFusion` behavior as before this parameter was added."""
-        super().__init__()
-        self.embedding_fusion = (fusion_cls or EmbeddingFusion)(
-            syllable_vocab_size, char_vocab_size,
-            use_char=use_char, use_contextual=use_contextual,
-            contextual_model_name=contextual_model_name,
-            contextual_projected_dim=contextual_projected_dim, pad_idx=pad_idx,
-            pretrained_syllable_matrix=pretrained_syllable_matrix,
-            freeze_syllable=freeze_syllable,
-            freeze_contextual=freeze_contextual,
-        )
-        self.dropout = nn.Dropout(dropout)
-        self.bilstm = nn.LSTM(
-            self.embedding_fusion.output_dim, lstm_hidden,
-            batch_first=True, bidirectional=True,
-        )
-        self.hidden2tag = nn.Linear(lstm_hidden * 2, num_tags)
-        self.crf = (crf_cls or CRF)(num_tags, pad_idx=tag_pad_idx)
-
-    def _emissions(self, batch: dict) -> torch.Tensor:
-        emb = self.embedding_fusion(batch)
-        emb = self.dropout(emb)
-        lstm_out, _ = self.bilstm(emb)
-        lstm_out = self.dropout(lstm_out)
-        return self.hidden2tag(lstm_out)
-
-    def loss(self, batch: dict) -> torch.Tensor:
-        emissions = self._emissions(batch)
-        return self.crf.neg_log_likelihood(emissions, batch["tag_ids"], batch["mask"])
-
-    def predict(self, batch: dict) -> list[list[int]]:
-        self.eval()
-        with torch.no_grad():
-            emissions = self._emissions(batch)
-            return self.crf.decode(emissions, batch["mask"])

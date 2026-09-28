@@ -24,6 +24,6 @@ keywords:
   - multi-head
 abstract: >
   Code kèm bài báo D044: mô hình đề xuất dùng shared encoder (syllable +
-  character CharLSTM + XLM-R-large) và 2 nhánh CRF độc lập cho bài toán
-  span detection trong phân tích cảm xúc theo khía cạnh (ABSA) tiếng Việt,
-  đối chiếu với baseline 1-CRF trên bộ dữ liệu UIT-ViSD4SA.
+  character CharLSTM + XLM-R-large) và 2 nhánh CRF độc lập (aspect +
+  polarity) cho bài toán span detection trong phân tích cảm xúc theo khía
+  cạnh (ABSA) tiếng Việt, trên bộ dữ liệu UIT-ViSD4SA.

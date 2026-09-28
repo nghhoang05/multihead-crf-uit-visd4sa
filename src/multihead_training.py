@@ -1,14 +1,11 @@
 """
 Training loop + decode/evaluate for the CRF multi-head span detection model
-(`src/multihead_model.py::BiLSTMMultiHeadCRFTagger`), mirroring
-`src/training.py::train_model` (same AdamW/AMP/OOM-recovery infrastructure,
-CRF-only weight decay scoping) but adapted for the 2-CRF-head loss/predict
+(`src/multihead_model.py::BiLSTMMultiHeadCRFTagger`) -- AdamW + fp16 AMP +
+CUDA-OOM-recovery training loop with CRF-only weight decay scoping (see
+`_build_multihead_param_groups`), adapted for the 2-CRF-head loss/predict
 shapes, and for merging the two independently-decoded tag sequences
 (aspect, polarity) back into the single (start, end, "ASPECT#POLARITY")
-format `src/evaluation.py::evaluate` expects -- the SAME evaluation function
-used to score the baseline (`src/training.py`) and Span-ViSD
-(`src/span_training.py`), so all 3 configurations in this project's
-span-detection ablation are scored identically and directly comparable.
+format `src/evaluation.py::evaluate` expects.
 """
 from __future__ import annotations
 
@@ -37,7 +34,7 @@ def merge_aspect_polarity_spans(
     each a dict with start/end/label=ASPECT, `src/span_detection.py::
     bio_to_spans`'s output format) and polarity spans (same shape,
     label=POLARITY) into the final (start, end, "ASPECT#POLARITY") set
-    `src/evaluation.py::evaluate` expects for both baseline and Span-ViSD.
+    `src/evaluation.py::evaluate` expects.
 
     The ASPECT head's boundaries are used as the canonical segmentation
     (aspect identification -- "what is being talked about" -- is this
@@ -127,17 +124,11 @@ def predict_dataset(model, loader, vocab: dict, device: torch.device, use_amp: b
                      collect_details: bool = False):
     """Returns (gold_spans_per_doc, pred_spans_per_doc, doc_ids), each a set
     of (start, end, "ASPECT#POLARITY") -- directly consumable by
-    `src/evaluation.py::evaluate`, identical format to the baseline and
-    Span-ViSD. Gold spans are decoded from `tag_ids_combined` (the SAME
-    combined-scheme tags the baseline trains on) via `src/evaluation.py::
-    decode_doc_spans` -- the EXACT SAME function `src/training.py::
-    predict_dataset` uses for the baseline's own gold-span decoding, so gold
-    is identical across all 3 configurations both in DATA and in DECODE
-    LOGIC (previously this function re-implemented that same 2-line decode
-    inline instead of calling it -- switched to avoid 2 independently-
-    maintained copies of identical logic). Only the PREDICTION side differs
-    (merged from the 2 independently-decoded heads via
-    `merge_aspect_polarity_spans`, which still needs `bio_to_spans`'s
+    `src/evaluation.py::evaluate`. Gold spans are decoded from
+    `tag_ids_combined` (the combined-scheme tags carried through unchanged
+    from the data) via `src/evaluation.py::decode_doc_spans`. Only the
+    PREDICTION side differs (merged from the 2 independently-decoded heads
+    via `merge_aspect_polarity_spans`, which still needs `bio_to_spans`'s
     dict-shaped output directly, not `decode_doc_spans`'s flattened set).
 
     `collect_details=True` (default False, fully backward-compatible --
@@ -145,9 +136,8 @@ def predict_dataset(model, loader, vocab: dict, device: torch.device, use_amp: b
     calls, keeps getting the exact same 3-tuple) ADDITIONALLY returns a 4th
     list, `details`: one JSON-serializable dict per document with
     `aspect_spans_pred`/`polarity_spans_pred` (the 2 heads' OWN decoded
-    spans, before merging), `merged_spans_pred`/`gold_spans` (span-level,
-    same shape `src/training.py::predict_dataset`'s `details` uses), and
-    this document's own `merge_stats` (from `merge_aspect_polarity_spans(...,
+    spans, before merging), `merged_spans_pred`/`gold_spans` (span-level),
+    and this document's own `merge_stats` (from `merge_aspect_polarity_spans(...,
     return_stats=True)` -- feed the per-doc `merge_stats` values into
     `aggregate_merge_stats` for the dataset-wide rates). Costs a little
     extra work per document (the merge stats bookkeeping) but no extra
@@ -209,9 +199,13 @@ def predict_dataset(model, loader, vocab: dict, device: torch.device, use_amp: b
 
 
 def _build_multihead_param_groups(model, lr: float, xlmr_lr: float, weight_decay: float) -> list[dict]:
-    """Same scoping rationale as `src/training.py::_build_param_groups`
-    (Eq. 11's L2 term is specific to the CRF's own parameters) -- adapted
-    for TWO CRFs (`crf_aspect`, `crf_polarity`) instead of one."""
+    """Splits trainable params into up to 3 AdamW param groups (CRF params
+    at `weight_decay`, everything else at 0, XLM-R at its own `xlmr_lr`) --
+    weight_decay is scoped to ONLY the two CRFs' own parameters because the
+    paper's Eq. (11), Section 4.3 "Conditional Random Fields (CRF)", writes
+    the CRF's training objective as log-likelihood minus an L2 penalty on
+    the CRF's own feature weights, not a network-wide weight decay; adapted
+    here for TWO CRFs (`crf_aspect`, `crf_polarity`) instead of one."""
     xlmr_params, other_params = _split_xlmr_params(model)
     crf_ids = {id(p) for p in model.crf_aspect.parameters()} | {id(p) for p in model.crf_polarity.parameters()}
     crf_params = [p for p in other_params if id(p) in crf_ids]
@@ -242,12 +236,7 @@ def train_model(
     use_amp: bool = True,
     log_fn=print,
 ) -> dict:
-    """Same shape, defaults, and rationale as `src/training.py::train_model`
-    (this configuration keeps the baseline's own CRF hyperparameters, unlike
-    Span-ViSD, since the extraction mechanism -- CRF decoding -- is
-    unchanged here; only the tag-space decomposition differs).
-
-    Runs the FULL `epochs` every time (no early stopping) -- the best
+    """Runs the FULL `epochs` every time (no early stopping) -- the best
     checkpoint by dev macro-F1 (exact span match) is still saved as training
     proceeds, so a run that peaks early doesn't lose that checkpoint, but
     the loop itself never breaks before `epochs` completes."""
@@ -291,7 +280,7 @@ def train_model(
                 n_oom_skipped += 1
                 optimizer.zero_grad(set_to_none=True)
                 if unscale_called:
-                    scaler.update()  # see src/training.py's identical fix -- resets GradScaler's stuck UNSCALED state
+                    scaler.update()  # resets GradScaler's stuck UNSCALED state after a mid-step OOM
                 del batch
                 torch.cuda.empty_cache()
                 log_fn(f"  !! CUDA OOM ở 1 batch (epoch {epoch}), đã bỏ qua batch này và tiếp tục.")

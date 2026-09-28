@@ -1,14 +1,12 @@
 # CRF Multi-Head — Span Detection cho ABSA tiếng Việt (UIT-ViSD4SA)
 
-Code kèm bài báo **D044**: **shared encoder** (syllable + character CharLSTM + XLM-R-large) và
-**hai nhánh CRF độc lập** cho bài toán span detection trong phân tích cảm xúc theo khía cạnh (ABSA)
-tiếng Việt, đối chiếu với **baseline** (1 CRF gộp) trên bộ dữ liệu UIT-ViSD4SA — mở rộng từ Nguyen et
+Code kèm bài báo **D044**: mô hình đề xuất dùng **shared encoder** (syllable + character CharLSTM +
+XLM-R-large) và **hai nhánh CRF độc lập** (aspect + polarity) cho bài toán span detection trong phân
+tích cảm xúc theo khía cạnh (ABSA) tiếng Việt, trên bộ dữ liệu UIT-ViSD4SA — mở rộng từ Nguyen et
 al. (2021), PACLIC 35, *"Span Detection for Aspect-Based Sentiment Analysis in Vietnamese"*.
 
-> ⚠️ **`config/hyperparams.yaml` LUÔN áp dụng CHUNG cho cả 2 mô hình** (baseline và mô hình đề
-> xuất) — đây là cam kết trả lời Reviewer 1, Comment 1: cùng optimizer, cùng learning-rate schedule,
-> cùng chính sách fine-tune XLM-R. `scripts/train.py` đọc trực tiếp từ file này cho cả 2 `--model`,
-> không hardcode riêng lẻ.
+> Repo này chỉ chứa **mô hình đề xuất** (2-CRF-head). Không có 1 baseline (1-CRF gộp) nào được đóng
+> gói/công bố kèm repo này.
 
 ## 1. Kiến trúc
 
@@ -19,33 +17,33 @@ Input câu (syllable + char + XLM-R)
         │
    BiLSTM (400 chiều/hướng)
         │
-  ┌─────┴─────┐                              ┌──────────────────┐
-  ▼           (baseline: dừng ở đây)          ▼ (mô hình đề xuất)
-CRF gộp                                  CRF aspect    CRF polarity
-(61 nhãn                                 (21 nhãn)     (7 nhãn)
- aspect#polarity)                             │             │
-                                               └──────┬──────┘
-                                                       ▼
-                                          merge_aspect_polarity_spans
-                                          (tie-break: giữ span polarity gặp ĐẦU TIÊN
-                                           trong vòng lặp, so sánh `>` nghiêm ngặt,
-                                           overlap tính theo offset KÝ TỰ)
+        ▼
+  ┌─────────────┐         ┌──────────────────┐
+  │ CRF aspect   │         │ CRF polarity     │
+  │ (21 nhãn)    │         │ (7 nhãn)         │
+  └──────┬───────┘         └────────┬─────────┘
+         └───────────┬──────────────┘
+                      ▼
+        merge_aspect_polarity_spans
+        (tie-break: giữ span polarity gặp ĐẦU TIÊN
+         trong vòng lặp, so sánh `>` nghiêm ngặt,
+         overlap tính theo offset KÝ TỰ)
 ```
 
 ## 2. Cấu trúc repo
 
 ```
-config/hyperparams.yaml            NGUỒN DUY NHẤT cho siêu tham số (khớp tab:hyperparams-shared)
+config/hyperparams.yaml            Siêu tham số (khớp tab:hyperparams-shared)
 notebooks/19_multihead_crf_model.ipynb   Notebook Colab (tiện lợi, KHÔNG phải nguồn tái lập chính thức)
 scripts/
   prepare_data.py                  Chuyển UIT-ViSD4SA gốc -> IOB + vocab
-  train.py                         CLI huấn luyện THỐNG NHẤT (--model baseline|multihead)
+  train.py                         CLI huấn luyện mô hình đề xuất
   evaluate.py                      Đánh giá lại 1 checkpoint (Exact Match F1 + merge-stats)
   measure_latency.py               Đo độ trễ suy luận batch_size=1 (Section IV-B)
   results_to_csv.py                Gộp nhiều results_*.json (đa-seed) thành 1 CSV
   table_per_aspect_f1.py           Bảng F1 theo khía cạnh, mean +- std qua nhiều seed
   smoke_test_multihead_model.py    Kiểm thử nhanh (CPU, không cần GPU/data thật)
-src/                               Model + training + data + evaluation (dùng chung 2 mô hình)
+src/                               Model + training + data + evaluation
 UIT-ViSD4SA/iob/vocab.json          Vocab đã dựng sẵn (KHÔNG chứa văn bản gốc)
 ```
 
@@ -97,17 +95,12 @@ Text-to-SQL Semantic Parsing for Vietnamese"*, Findings of ACL: EMNLP 2020.
 
 ## 5. Tái lập từng bảng kết quả
 
-Cả 3 lệnh dưới đây đọc chung `config/hyperparams.yaml` — baseline và mô hình đề xuất LUÔN cùng 1
-cấu hình huấn luyện.
-
 ### Bảng III/IV (Exact Match F1, macro/micro, 5 seed cố định)
 
 ```bash
 # PhoW2V: tải + giải nén vào phow2v/extracted/ trước (xem notebooks/19 Mục 3, hoặc gdown thủ công)
-python scripts/train.py --model baseline  --seeds 42 123 777 2024 2025
-python scripts/train.py --model multihead --seeds 42 123 777 2024 2025
+python scripts/train.py --seeds 42 123 777 2024 2025
 
-python scripts/results_to_csv.py --glob "results_baseline_seed*.json"  --out table_baseline.csv
 python scripts/results_to_csv.py --glob "results_multihead_seed*.json" --out table_multihead.csv
 ```
 
@@ -118,16 +111,17 @@ xem mục 7 "Giới hạn" dưới đây).
 Đánh giá lại 1 checkpoint đã có (không train lại), gồm cả default-assignment rate/orphan rate
 (Section III-C):
 ```bash
-python scripts/evaluate.py --model multihead --checkpoint checkpoint_multihead_seed42.pt
+python scripts/evaluate.py --checkpoint checkpoint_multihead_seed42.pt
 ```
 
-### Section IV-B (độ trễ suy luận, batch_size=1, baseline vs mô hình đề xuất)
+### Section IV-B (độ trễ suy luận, batch_size=1)
 
 ```bash
-python scripts/measure_latency.py \
-    --baseline-checkpoint checkpoint_baseline_seed42.pt \
-    --multihead-checkpoint checkpoint_multihead_seed42.pt
+python scripts/measure_latency.py --checkpoint checkpoint_multihead_seed42.pt
 ```
+
+In riêng từng giai đoạn (model forward, giải mã span, hợp nhất 2 CRF) — cho biết bước hợp nhất
+chiếm bao nhiêu % tổng độ trễ/câu.
 
 ### Bảng V (F1 theo khía cạnh, mean ± std qua 5 seed)
 
@@ -138,9 +132,8 @@ python scripts/table_per_aspect_f1.py --glob "results_multihead_seed*.json" --ou
 ### (Tuỳ chọn) Notebook Colab
 
 `notebooks/19_multihead_crf_model.ipynb` huấn luyện mô hình đề xuất trên Colab (GPU T4) — tiện cho
-khám phá tương tác, nhưng **`scripts/train.py` là nguồn tái lập chính thức** (đảm bảo baseline và mô
-hình đề xuất luôn cùng cấu hình bằng cách đọc chung 1 file config, thay vì phải giữ đồng bộ tay 2
-notebook riêng). Sửa `GITHUB_REPO_URL` ở Mục 2 của notebook thành URL repo thật sau khi push.
+khám phá tương tác, nhưng **`scripts/train.py` là nguồn tái lập chính thức**. Sửa `GITHUB_REPO_URL`
+ở Mục 2 của notebook thành URL repo thật sau khi push.
 
 ## 6. Kiểm thử
 
@@ -152,11 +145,10 @@ Không cần GPU/mạng — kiểm tra `merge_aspect_polarity_spans`, forward/ba
 
 ## 7. Giới hạn / lưu ý khi tái lập (đọc trước khi báo cáo lại số liệu)
 
-- **Không có early stopping**: cả baseline và mô hình đề xuất LUÔN chạy đủ `epochs` trong config
-  (mặc định 30), không dừng sớm — đây là lựa chọn ĐỒNG BỘ giữa 2 mô hình, nhưng **cần bạn tự xác
-  nhận lại với bản thảo bài báo** xem mục Huấn luyện có nói rõ có/không dùng early stopping hay
-  không; nếu bài báo có nêu, cần khôi phục lại patience ở cả 2 nơi (`src/training.py::train_model`,
-  `src/multihead_training.py::train_model`) cho khớp.
+- **Không có early stopping**: mô hình LUÔN chạy đủ `epochs` trong config (mặc định 30), không dừng
+  sớm — **cần bạn tự xác nhận lại với bản thảo bài báo** xem mục Huấn luyện có nói rõ có/không dùng
+  early stopping hay không; nếu bài báo có nêu, cần khôi phục lại patience trong
+  `src/multihead_training.py::train_model` cho khớp.
 - **`requirements.txt` không được xác nhận bit-for-bit** đúng phiên bản đã dùng trên Google Colab
   lúc tạo ra số liệu báo cáo (Colab không lưu log version) — xem lưu ý ngay trong file đó.
 - **`scripts/prepare_data.py`** tái tạo dữ liệu IOB từ file jsonl gốc nhưng thiếu 1 bước sửa lỗi
@@ -166,10 +158,10 @@ Không cần GPU/mạng — kiểm tra `merge_aspect_polarity_spans`, forward/ba
   đầy đủ (chạy đúng, không lỗi, trên CPU với cấu hình rút gọn), nhưng việc tái lập ĐÚNG con số cần
   chạy thật `scripts/train.py` với đầy đủ 5 seed trên GPU (nhiều giờ/seed với XLM-R-large).
 
-## 8. Đối chiếu với bài báo gốc (Nguyen et al. 2021)
+## 8. Đối chiếu shared encoder với bài báo gốc (Nguyen et al. 2021)
 
-*(Bảng này áp dụng cho phần Step-1 encoder + baseline, kế thừa trực tiếp từ Nguyen et al. 2021 —
-phần "2 CRF độc lập + merge" là đóng góp riêng của bài D044, không đối chiếu ở đây.)*
+*(Embedding fusion + BiLSTM, dùng chung bởi cả 2 nhánh CRF, kế thừa trực tiếp từ Nguyen et al. 2021
+-- phần "2 CRF độc lập + merge" là đóng góp riêng của bài D044, không đối chiếu ở đây.)*
 
 | Khoản mục | Khớp bài báo | Khác / diễn giải | Không có thông tin trong bài báo |
 |---|---|---|---|

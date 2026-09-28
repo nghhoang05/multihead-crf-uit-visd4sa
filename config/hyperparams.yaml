@@ -1,11 +1,9 @@
-# Siêu tham số DÙNG CHUNG cho baseline (1 CRF) và mô hình đề xuất (2 CRF độc lập)
-# -- khớp Bảng hyperparameter đã công bố trong bài (tab:hyperparams-shared).
+# Siêu tham số cho mô hình đề xuất (2 CRF độc lập) -- khớp Bảng hyperparameter
+# đã công bố trong bài (tab:hyperparams-shared).
 #
 # File này là NGUỒN DUY NHẤT cho các giá trị dưới đây -- `scripts/train.py` đọc
-# trực tiếp từ đây, không hardcode lại ở nơi khác, để baseline và mô hình đề
-# xuất LUÔN được huấn luyện dưới đúng cùng 1 cấu hình (cam kết với Reviewer 1,
-# Comment 1). Nếu cần đổi 1 giá trị, sửa Ở ĐÂY rồi chạy lại `scripts/train.py`
-# cho CẢ 2 mô hình, không sửa riêng lẻ trong code.
+# trực tiếp từ đây, không hardcode lại ở nơi khác. Nếu cần đổi 1 giá trị, sửa
+# Ở ĐÂY rồi chạy lại `scripts/train.py`, không sửa riêng lẻ trong code.
 
 # --- Kiến trúc encoder (dùng chung: syllable + character CharLSTM + XLM-R) ---
 architecture:
@@ -33,9 +31,8 @@ optimizer:
 
 # --- Vòng lặp huấn luyện ---
 training:
-  epochs: 30                 # LUÔN chạy đủ số epoch này -- KHÔNG early stopping (baseline và mô
-                              # hình đề xuất dùng chung quy tắc, xem src/training.py, src/
-                              # multihead_training.py)
+  epochs: 30                 # LUÔN chạy đủ số epoch này -- KHÔNG early stopping
+                              # (xem src/multihead_training.py::train_model)
   use_amp: true               # mixed precision (fp16) khi có CUDA, tự tắt trên CPU
   checkpoint_selection: "dev_macro_f1_best"   # lưu checkpoint tại epoch có dev macro-F1 (exact span match) cao nhất
 
@@ -52,7 +49,7 @@ inference_latency:
 # --- Ghi chú độ tin cậy của file này (đọc trước khi dùng để báo cáo lại số liệu) ---
 # Toàn bộ giá trị bên trên được trích xuất trực tiếp từ code/notebook đã có sẵn trong dự án
 # (đã đối chiếu với các trích dẫn Section/Table/Equation ghi trong docstring của
-# src/bilstm_crf.py, src/training.py, src/multihead_training.py). Các giá trị KHÔNG có
-# trích dẫn cụ thể tới bài báo (lr, xlmr_lr, epochs, checkpoint_selection...) là lựa chọn
-# kỹ thuật của nhóm nghiên cứu, không phải số bài báo quy định -- xem README.md mục
-# "Đối chiếu với bài báo" để biết chi tiết từng mục khớp/khác/không có thông tin.
+# src/bilstm_crf.py, src/multihead_training.py). Các giá trị KHÔNG có trích dẫn cụ thể tới
+# bài báo (lr, xlmr_lr, epochs, checkpoint_selection...) là lựa chọn kỹ thuật của nhóm
+# nghiên cứu, không phải số bài báo quy định -- xem README.md mục "Đối chiếu với bài báo"
+# để biết chi tiết từng mục khớp/khác/không có thông tin.

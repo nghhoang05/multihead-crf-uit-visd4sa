@@ -1,18 +1,16 @@
 """
-Dataset/collate utilities for the CRF multi-head span detection variant
-(`src/multihead_model.py::BiLSTMMultiHeadCRFTagger`) -- configuration #2 in
-this project's 3-way span-detection ablation (see that module's docstring).
+Dataset/collate utilities for the CRF multi-head span detection model
+(`src/multihead_model.py::BiLSTMMultiHeadCRFTagger`).
 
-Reuses the EXACT SAME `UIT-ViSD4SA/iob/{train,dev,test}.json` + `vocab.json`
-files as the baseline (`src/span_dataset.py`), no new preprocessing needed:
-every doc there already carries `tags_aspect`, `tags_polarity`, AND
-`tags_aspect_polarity` (the 3 schemes from `src/span_detection.py`), and
-`vocab.json`'s `tag_vocab` already has all 3 as separate tag sets. This
-collator reads all three per example -- `tags_aspect`/`tags_polarity` are
-the two heads' TRAINING targets, while `tags_aspect_polarity` is carried
-through unchanged so gold spans can be decoded EXACTLY like the baseline
-does (same tag vocab, same `bio_to_spans`), keeping the 3-way ablation's
-gold side identical across all configurations.
+Reads `UIT-ViSD4SA/iob/{train,dev,test}.json` + `vocab.json`
+(`scripts/prepare_data.py`'s output): every doc there already carries
+`tags_aspect`, `tags_polarity`, AND `tags_aspect_polarity` (the 3 schemes
+from `src/span_detection.py`), and `vocab.json`'s `tag_vocab` already has
+all 3 as separate tag sets. This collator reads all three per example --
+`tags_aspect`/`tags_polarity` are the two heads' TRAINING targets, while
+`tags_aspect_polarity` is carried through unchanged so gold spans can be
+decoded via the combined tag vocab + `bio_to_spans` (see
+`src/multihead_training.py::predict_dataset`).
 """
 from __future__ import annotations
 

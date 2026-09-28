@@ -6,7 +6,6 @@ cần chạy lại từ đầu.
 
 Cách dùng:
     python scripts/results_to_csv.py --glob "results_multihead_seed*.json" --out table_multihead.csv
-    python scripts/results_to_csv.py --glob "results_baseline_seed*.json" --out table_baseline.csv
 """
 from __future__ import annotations
 

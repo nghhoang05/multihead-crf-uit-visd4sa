@@ -1,12 +1,11 @@
 """
 Đánh giá LẠI 1 checkpoint đã huấn luyện (không train lại) trên tập test:
-Exact Match F1 (micro/macro/per-class, đúng `src/evaluation.py::evaluate`) và,
-với mô hình đề xuất, thêm tỉ lệ default-assignment + orphan-polarity (đúng
-công thức Section III-C, `src/multihead_training.py::aggregate_merge_stats`).
+Exact Match F1 (micro/macro/per-class, đúng `src/evaluation.py::evaluate`) và
+tỉ lệ default-assignment + orphan-polarity (đúng công thức Section III-C,
+`src/multihead_training.py::aggregate_merge_stats`).
 
 Cách dùng:
-    python scripts/evaluate.py --model baseline  --checkpoint checkpoint_baseline_seed42.pt
-    python scripts/evaluate.py --model multihead --checkpoint checkpoint_multihead_seed42.pt
+    python scripts/evaluate.py --checkpoint checkpoint_multihead_seed42.pt
 
 Kiến trúc model được dựng lại từ `config/hyperparams.yaml` (mặc định) --
 PHẢI khớp đúng kiến trúc đã dùng lúc huấn luyện checkpoint đó, nếu không
@@ -23,15 +22,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import torch
 import yaml
+from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
+from src.evaluation import evaluate
+from src.multihead_dataset import MultiHeadCollator, MultiHeadSpanDataset
+from src.multihead_model import BiLSTMMultiHeadCRFTagger
+from src.multihead_training import aggregate_merge_stats, predict_dataset
 from src.pretrained_syllable_embedding import build_syllable_embedding_matrix, load_word2vec_vectors
 from src.span_dataset import load_vocab
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--model", choices=["baseline", "multihead"], required=True)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--config", type=Path, default=Path("config/hyperparams.yaml"))
     parser.add_argument("--data-dir", type=Path, default=Path("UIT-ViSD4SA/iob"))
@@ -65,75 +68,37 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(arch["contextual_model_name"]) if arch["use_contextual"] else None
 
-    if args.model == "baseline":
-        from torch.utils.data import DataLoader
+    test_ds = MultiHeadSpanDataset(args.data_dir / "test.json")
+    collate = MultiHeadCollator(vocab, tokenizer=tokenizer, use_contextual=arch["use_contextual"])
+    test_loader = DataLoader(test_ds, batch_size=8, collate_fn=collate)
 
-        from src.bilstm_crf import BiLSTMCRFTagger
-        from src.evaluation import evaluate
-        from src.span_dataset import Collator, SpanDataset
-        from src.training import predict_dataset
+    model = BiLSTMMultiHeadCRFTagger(
+        syllable_vocab_size=len(vocab["syllable"]), char_vocab_size=len(vocab["char"]),
+        num_tags_aspect=len(vocab["tag"]["aspect"]), num_tags_polarity=len(vocab["tag"]["polarity"]),
+        use_char=arch["use_char"], use_contextual=arch["use_contextual"],
+        contextual_model_name=arch["contextual_model_name"], contextual_projected_dim=arch["contextual_projected_dim"],
+        lstm_hidden=arch["lstm_hidden"], dropout=arch["dropout"],
+        pretrained_syllable_matrix=syllable_matrix,
+        freeze_syllable=arch["freeze_syllable"], freeze_contextual=arch["freeze_contextual"],
+    ).to(device)
+    model.load_state_dict(torch.load(args.checkpoint, map_location=device))
 
-        scheme = "aspect_polarity"
-        test_ds = SpanDataset(args.data_dir / "test.json", scheme=scheme)
-        collate = Collator(vocab, scheme=scheme, tokenizer=tokenizer, use_contextual=arch["use_contextual"])
-        test_loader = DataLoader(test_ds, batch_size=8, collate_fn=collate)
+    gold, pred, _, details = predict_dataset(model, test_loader, vocab, device, use_amp=False, collect_details=True)
+    metrics = evaluate(gold, pred)
+    merge_stats = aggregate_merge_stats([d["merge_stats"] for d in details])
+    report = {
+        "model": "multihead", "checkpoint": str(args.checkpoint),
+        "test_micro": metrics["micro"], "test_macro": metrics["macro"], "test_per_class": metrics["per_class"],
+        "merge_stats": merge_stats,
+    }
 
-        model = BiLSTMCRFTagger(
-            syllable_vocab_size=len(vocab["syllable"]), char_vocab_size=len(vocab["char"]),
-            num_tags=len(vocab["tag"][scheme]),
-            use_char=arch["use_char"], use_contextual=arch["use_contextual"],
-            contextual_model_name=arch["contextual_model_name"], contextual_projected_dim=arch["contextual_projected_dim"],
-            lstm_hidden=arch["lstm_hidden"], dropout=arch["dropout"],
-            pretrained_syllable_matrix=syllable_matrix,
-            freeze_syllable=arch["freeze_syllable"], freeze_contextual=arch["freeze_contextual"],
-        ).to(device)
-        model.load_state_dict(torch.load(args.checkpoint, map_location=device))
-
-        gold, pred, _ = predict_dataset(model, test_loader, vocab, scheme, device, use_amp=False)
-        metrics = evaluate(gold, pred)
-        report = {"model": "baseline", "checkpoint": str(args.checkpoint),
-                  "test_micro": metrics["micro"], "test_macro": metrics["macro"], "test_per_class": metrics["per_class"]}
-
-    else:
-        from torch.utils.data import DataLoader
-
-        from src.evaluation import evaluate
-        from src.multihead_dataset import MultiHeadCollator, MultiHeadSpanDataset
-        from src.multihead_model import BiLSTMMultiHeadCRFTagger
-        from src.multihead_training import aggregate_merge_stats, predict_dataset
-
-        test_ds = MultiHeadSpanDataset(args.data_dir / "test.json")
-        collate = MultiHeadCollator(vocab, tokenizer=tokenizer, use_contextual=arch["use_contextual"])
-        test_loader = DataLoader(test_ds, batch_size=8, collate_fn=collate)
-
-        model = BiLSTMMultiHeadCRFTagger(
-            syllable_vocab_size=len(vocab["syllable"]), char_vocab_size=len(vocab["char"]),
-            num_tags_aspect=len(vocab["tag"]["aspect"]), num_tags_polarity=len(vocab["tag"]["polarity"]),
-            use_char=arch["use_char"], use_contextual=arch["use_contextual"],
-            contextual_model_name=arch["contextual_model_name"], contextual_projected_dim=arch["contextual_projected_dim"],
-            lstm_hidden=arch["lstm_hidden"], dropout=arch["dropout"],
-            pretrained_syllable_matrix=syllable_matrix,
-            freeze_syllable=arch["freeze_syllable"], freeze_contextual=arch["freeze_contextual"],
-        ).to(device)
-        model.load_state_dict(torch.load(args.checkpoint, map_location=device))
-
-        gold, pred, _, details = predict_dataset(model, test_loader, vocab, device, use_amp=False, collect_details=True)
-        metrics = evaluate(gold, pred)
-        merge_stats = aggregate_merge_stats([d["merge_stats"] for d in details])
-        report = {
-            "model": "multihead", "checkpoint": str(args.checkpoint),
-            "test_micro": metrics["micro"], "test_macro": metrics["macro"], "test_per_class": metrics["per_class"],
-            "merge_stats": merge_stats,
-        }
-
-    print(f"\n=== {args.model} ({args.checkpoint}) ===")
+    print(f"\n=== {args.checkpoint} ===")
     print(f"Test micro F1: {report['test_micro']['f1']:.4f} | macro F1: {report['test_macro']['f1']:.4f}")
-    if "merge_stats" in report:
-        s = report["merge_stats"]
-        print(f"Default-assignment rate: {s['default_assigned_rate_pct']:.2f}% "
-              f"({s['default_assigned']:,}/{s['total_aspect_spans']:,} span aspect)")
-        print(f"Orphan-polarity rate: {s['orphan_polarity_discarded_rate_pct']:.2f}% "
-              f"({s['orphan_polarity_discarded']:,}/{s['total_polarity_spans']:,} span polarity)")
+    s = report["merge_stats"]
+    print(f"Default-assignment rate: {s['default_assigned_rate_pct']:.2f}% "
+          f"({s['default_assigned']:,}/{s['total_aspect_spans']:,} span aspect)")
+    print(f"Orphan-polarity rate: {s['orphan_polarity_discarded_rate_pct']:.2f}% "
+          f"({s['orphan_polarity_discarded']:,}/{s['total_polarity_spans']:,} span polarity)")
 
     if args.out is not None:
         with open(args.out, "w", encoding="utf-8") as f:

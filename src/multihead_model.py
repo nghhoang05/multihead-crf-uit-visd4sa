@@ -1,38 +1,26 @@
 """
-BiLSTM + 2-independent-CRF-heads span detection model -- configuration #2 in
-this project's 3-way span-detection ablation:
-  #1 baseline:   `src/bilstm_crf.py::BiLSTMCRFTagger`      (1 CRF, 61-way combined `aspect#polarity` tag)
-  #2 this file:  `BiLSTMMultiHeadCRFTagger`                (2 CRFs: aspect 21-way + polarity 7-way)
-  #3 Span-ViSD:  `src/span_model.py::SpanEnumerationModel` (span-enumeration + pruning + 2 classification heads)
-
-#2 exists to isolate the "multi-head" idea (asking 2 small, easy questions
-instead of 1 big, hard one) as a SINGLE-VARIABLE ablation against the
-baseline, instead of only being able to compare against #3 (Span-ViSD),
-which changes BOTH the label space AND the whole span-finding mechanism
-(enumeration + pruning instead of CRF decoding) at once -- a comparison
-against #3 alone cannot tell you whether an observed F1 change is caused by
-multi-head or by switching extraction paradigms.
+BiLSTM + 2-independent-CRF-heads span detection model. The idea: instead of
+1 big CRF over a 61-way combined `aspect#polarity` tag space, ask 2 smaller,
+easier questions independently -- an aspect CRF (`O,B-<aspect>,I-<aspect>`
+x10 = 21 tags) and a polarity CRF (`O,B-<polarity>,I-<polarity>` x3 = 7
+tags), trained JOINTLY through one shared encoder.
 
 Step 1 (`EmbeddingFusion`) and the extraction MECHANISM (CRF Viterbi
-decoding over the shared BiLSTM hidden states) are IDENTICAL to the
-baseline -- reused verbatim from `src/bilstm_crf.py`. The only difference is
-splitting the 61-way combined `O,B-<aspect>#<polarity>,I-<aspect>#<polarity>`
-tag space into two smaller, INDEPENDENTLY-decoded CRF heads (aspect:
-`O,B-<aspect>,I-<aspect>` x10 = 21 tags; polarity:
-`O,B-<polarity>,I-<polarity>` x3 = 7 tags) trained JOINTLY through the one
-shared encoder. Joint training through a shared encoder is what lets the
-polarity head share statistics across every aspect (e.g. NEUTRAL learned
-from CAMERA#NEUTRAL, BATTERY#NEUTRAL, ... generalizes to DESIGN#NEUTRAL via
-the shared polarity CRF's own weights) -- a single 61-way tag space cannot
-do this, since B-DESIGN#NEUTRAL is its own independent, unshared parameter.
+decoding over the shared BiLSTM hidden states) reuse the building blocks in
+`src/bilstm_crf.py` verbatim -- see that module's docstring for the
+embedding-fusion architecture (reproducing Nguyen et al. 2021's encoder up
+through the BiLSTM step). Joint training through a shared encoder is what
+lets the polarity head share statistics across every aspect (e.g. NEUTRAL
+learned from CAMERA#NEUTRAL, BATTERY#NEUTRAL, ... generalizes to
+DESIGN#NEUTRAL via the shared polarity CRF's own weights) -- a single
+61-way tag space cannot do this, since B-DESIGN#NEUTRAL is its own
+independent, unshared parameter.
 
 Because the two CRFs decode independently, they can (and will) disagree on
 exactly where a span starts/ends. See `merge_aspect_polarity_spans` in
 `src/multihead_training.py` for how the two decoded segmentations are
 reconciled back into the single (start, end, "ASPECT#POLARITY") format that
-`src/evaluation.py::evaluate` expects -- the SAME evaluation function used
-to score the baseline and Span-ViSD, so all 3 configurations are directly
-comparable.
+`src/evaluation.py::evaluate` expects.
 """
 from __future__ import annotations
 
