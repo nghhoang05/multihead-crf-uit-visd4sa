@@ -183,7 +183,6 @@ def train_model(
     lr: float = 1e-3,
     xlmr_lr: float = 2e-5,
     weight_decay: float = 1e-2,
-    patience: int = 3,
     grad_clip: float = 5.0,
     checkpoint_path: Path | str | None = None,
     use_amp: bool = True,
@@ -193,9 +192,14 @@ def train_model(
     Trains with AdamW over the trainable parameters (any frozen component --
     XLM-R and/or the syllable embedding -- is excluded automatically since
     its params have requires_grad=False), gradient clipping (CRF losses can
-    spike early in training), and early stopping on dev macro-F1 (exact span
-    match). Saves the best checkpoint's state_dict to `checkpoint_path` if
-    given. Returns a history dict for plotting/reporting.
+    spike early in training). Saves the best checkpoint's state_dict (by dev
+    macro-F1, exact span match) to `checkpoint_path` if given, but always
+    runs the FULL `epochs` -- no early stopping (matches `src/
+    multihead_training.py::train_model`'s SAME choice for the proposed
+    model, so baseline and proposed model share the identical training
+    configuration end to end; a run that peaks early doesn't lose that
+    checkpoint, the loop just doesn't break before `epochs` completes).
+    Returns a history dict for plotting/reporting.
 
     `xlmr_lr` is a SEPARATE, much smaller learning rate for XLM-R's own
     parameters when it's being fine-tuned (freeze_contextual=False) --
@@ -238,7 +242,6 @@ def train_model(
 
     history = []
     best_macro_f1 = -1.0
-    epochs_without_improvement = 0
 
     for epoch in range(1, epochs + 1):
         batch_sampler = getattr(train_loader, "batch_sampler", None)
@@ -310,14 +313,8 @@ def train_model(
 
         if dev_metrics["macro"]["f1"] > best_macro_f1:
             best_macro_f1 = dev_metrics["macro"]["f1"]
-            epochs_without_improvement = 0
             if checkpoint_path is not None:
                 torch.save(model.state_dict(), checkpoint_path)
                 log_fn(f"  -> dev macro-F1 cải thiện, đã lưu checkpoint: {checkpoint_path}")
-        else:
-            epochs_without_improvement += 1
-            if epochs_without_improvement >= patience:
-                log_fn(f"  -> dừng sớm (early stopping): {patience} epoch liên tiếp không cải thiện dev macro-F1")
-                break
 
     return {"history": history, "best_dev_macro_f1": best_macro_f1}

@@ -1,13 +1,21 @@
-# Core, cần cho cả huấn luyện lẫn scripts/smoke_test_multihead_model.py (CPU, không cần GPU)
-torch>=2.1
-numpy>=1.26
-pandas>=2.2
+# Phiên bản thư viện đã dùng để phát triển/kiểm thử code trong repo này.
+#
+# LƯU Ý QUAN TRỌNG VỀ ĐỘ TIN CẬY: huấn luyện THẬT (cho ra các con số đã báo cáo trong bài,
+# 45.63% +- 0.74 macro-F1 v.v.) chạy trên Google Colab (GPU T4), KHÔNG phải trên máy phát
+# triển local dùng để soạn file này -- môi trường Colab không lưu lại log phiên bản thư viện
+# chính xác đã dùng tại thời điểm chạy. Các version dưới đây là bản THẬT, ổn định, tương thích
+# lẫn nhau tại thời điểm chuẩn bị repo này, và đã verify code chạy đúng với đúng các version
+# này (`scripts/smoke_test_*.py` đều pass) -- nhưng CHƯA được xác nhận là bit-for-bit đúng
+# version đã tạo ra số liệu trong bài. Nếu tái lập không khớp 100% số liệu báo cáo, đây là nơi
+# đầu tiên nên kiểm tra lại (thử cài `transformers`/`torch` ở các phiên bản lân cận).
 
-# Cần cho notebook (huấn luyện thật) + scripts/prepare_data.py -- KHÔNG pin cứng phiên bản,
-# cùng quy ước với requirements.txt của dự án gốc (cài trực tiếp trên runtime GPU thực tế
-# dùng để train, vd Google Colab, thay vì trên máy phát triển CPU-only):
-#   pip install transformers gensim gdown
-# notebooks/19_multihead_crf_model.ipynb đã có sẵn 1 cell cài các gói này khi chạy trên Colab.
+torch==2.7.0
+numpy==2.2.3
+pandas==2.2.3
+transformers==4.52.3
+gensim==4.4.0
+gdown==5.2.0
+PyYAML==6.0.2
 
 # Chỉ cần nếu chạy notebook cục bộ (không phải Colab):
 jupyter

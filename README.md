@@ -1,86 +1,85 @@
 # CRF Multi-Head — Span Detection cho ABSA tiếng Việt (UIT-ViSD4SA)
 
-Tái hiện + mở rộng bài toán **span detection** cho phân tích cảm xúc theo khía cạnh (ABSA) tiếng
-Việt, dựa trên *"Span Detection for Aspect-Based Sentiment Analysis in Vietnamese"* (Nguyen et al.,
-PACLIC 35, 2021) và bộ dữ liệu **UIT-ViSD4SA**.
+Code kèm bài báo **D044**: **shared encoder** (syllable + character CharLSTM + XLM-R-large) và
+**hai nhánh CRF độc lập** cho bài toán span detection trong phân tích cảm xúc theo khía cạnh (ABSA)
+tiếng Việt, đối chiếu với **baseline** (1 CRF gộp) trên bộ dữ liệu UIT-ViSD4SA — mở rộng từ Nguyen et
+al. (2021), PACLIC 35, *"Span Detection for Aspect-Based Sentiment Analysis in Vietnamese"*.
 
-Đây là **cấu hình #2** trong 1 ablation 3 chiều rộng hơn (baseline 1-head CRF gộp / **multi-head 2
-CRF độc lập (repo này)** / span-enumeration) — repo này tách riêng ĐÚNG 1 biến để cô lập hiệu ứng
-"multi-head" (chia nhỏ 1 head 30-lớp `aspect#polarity` gộp thành 2 CRF nhỏ hơn, aspect + polarity),
-không đổi cơ chế trích xuất span (vẫn CRF tuần tự + Viterbi decode).
+> ⚠️ **`config/hyperparams.yaml` LUÔN áp dụng CHUNG cho cả 2 mô hình** (baseline và mô hình đề
+> xuất) — đây là cam kết trả lời Reviewer 1, Comment 1: cùng optimizer, cùng learning-rate schedule,
+> cùng chính sách fine-tune XLM-R. `scripts/train.py` đọc trực tiếp từ file này cho cả 2 `--model`,
+> không hardcode riêng lẻ.
 
-## Kiến trúc
+## 1. Kiến trúc
 
 ```
 Input câu (syllable + char + XLM-R)
         │
-   Embedding fusion (syllable PhoW2V + char-BiLSTM + XLM-R chiếu 100 chiều)
+   Embedding fusion (syllable PhoW2V 100d + char-BiLSTM 100d + XLM-R-large chiếu 100d)
         │
    BiLSTM (400 chiều/hướng)
         │
-   ┌────┴────┐
-   ▼         ▼
-CRF aspect  CRF polarity     <- 2 CRF ĐỘC LẬP, cùng đọc 1 encoder chung
-(21 tag)    (7 tag)
-   │         │
-   └────┬────┘
-        ▼
-merge_aspect_polarity_spans   <- hợp nhất 2 chuỗi quyết định độc lập thành
-                                   (start, end, "ASPECT#POLARITY")
+  ┌─────┴─────┐                              ┌──────────────────┐
+  ▼           (baseline: dừng ở đây)          ▼ (mô hình đề xuất)
+CRF gộp                                  CRF aspect    CRF polarity
+(61 nhãn                                 (21 nhãn)     (7 nhãn)
+ aspect#polarity)                             │             │
+                                               └──────┬──────┘
+                                                       ▼
+                                          merge_aspect_polarity_spans
+                                          (tie-break: giữ span polarity gặp ĐẦU TIÊN
+                                           trong vòng lặp, so sánh `>` nghiêm ngặt,
+                                           overlap tính theo offset KÝ TỰ)
 ```
 
-Vì 2 CRF decode độc lập, chúng có thể cho biên span khác nhau — `src/multihead_training.py::
-merge_aspect_polarity_spans` xử lý việc này (biên của CRF aspect làm chuẩn, chọn polarity theo
-overlap lớn nhất, mặc định `POSITIVE` nếu không polarity span nào chồng lấn).
-
-## Cấu trúc repo
+## 2. Cấu trúc repo
 
 ```
-notebooks/19_multihead_crf_model.ipynb   Notebook chính (Google Colab, GPU T4)
-src/
-  bilstm_crf.py                          Embedding fusion + CRF gốc (baseline, tái sử dụng)
-  multihead_model.py                     BiLSTMMultiHeadCRFTagger (2 CRF độc lập)
-  multihead_dataset.py                   Dataset/collate cho 2 CRF
-  multihead_training.py                  Training loop + merge_aspect_polarity_spans
-  span_dataset.py, span_detection.py     Tiện ích syllable-tokenize/IOB dùng chung
-  pretrained_syllable_embedding.py       Nạp PhoW2V + xây ma trận embedding
-  token_batch_sampler.py                 Dynamic token-budget batching
-  evaluation.py                          Exact-span-match P/R/F1 (micro/macro/per-class)
-  experiment_tracking.py                 So sánh nhiều lần chạy/cấu hình
-  training.py                            Tiện ích chung (set_seed, param groups, XLM-R lr riêng)
-  vietnamese_tone_normalization.py       Chuẩn hoá dấu tiếng Việt
-  inference.py                           Suy luận trên câu tuỳ ý (sau khi có checkpoint)
+config/hyperparams.yaml            NGUỒN DUY NHẤT cho siêu tham số (khớp tab:hyperparams-shared)
+notebooks/19_multihead_crf_model.ipynb   Notebook Colab (tiện lợi, KHÔNG phải nguồn tái lập chính thức)
 scripts/
-  prepare_data.py                        Chuyển UIT-ViSD4SA gốc -> IOB + vocab (Mục "Dữ liệu")
-  smoke_test_multihead_model.py          Kiểm thử nhanh (CPU, không cần GPU/data thật)
-UIT-ViSD4SA/iob/vocab.json                Vocab đã dựng sẵn (syllable/char/tag) -- KHÔNG chứa văn bản gốc
+  prepare_data.py                  Chuyển UIT-ViSD4SA gốc -> IOB + vocab
+  train.py                         CLI huấn luyện THỐNG NHẤT (--model baseline|multihead)
+  evaluate.py                      Đánh giá lại 1 checkpoint (Exact Match F1 + merge-stats)
+  measure_latency.py               Đo độ trễ suy luận batch_size=1 (Section IV-B)
+  results_to_csv.py                Gộp nhiều results_*.json (đa-seed) thành 1 CSV
+  table_per_aspect_f1.py           Bảng F1 theo khía cạnh, mean +- std qua nhiều seed
+  smoke_test_multihead_model.py    Kiểm thử nhanh (CPU, không cần GPU/data thật)
+src/                               Model + training + data + evaluation (dùng chung 2 mô hình)
+UIT-ViSD4SA/iob/vocab.json          Vocab đã dựng sẵn (KHÔNG chứa văn bản gốc)
 ```
 
-## Dữ liệu
-
-**UIT-ViSD4SA**: 35.396 span gán nhãn thủ công trên 11.122 bình luận điện thoại tiếng Việt, theo 10
-khía cạnh (BATTERY, CAMERA, DESIGN, FEATURES, GENERAL, PERFORMANCE, PRICE, SCREEN, SER&ACC, STORAGE)
-× 3 cực tính (NEGATIVE, NEUTRAL, POSITIVE). Nguồn gốc: https://github.com/kimkim00/UIT-ViSD4SA
-
-Repo này **không commit sẵn dữ liệu đã chuyển đổi** (`UIT-ViSD4SA/iob/{train,dev,test}.json`) — dữ
-liệu là của bên thứ ba, không có giấy phép redistribute rõ ràng (chỉ yêu cầu trích dẫn). Chỉ
-`vocab.json` (thống kê suy ra: danh sách âm tiết/ký tự/nhãn, không chứa văn bản bình luận gốc) được
-commit sẵn.
-
-**Notebook 19 tự động tải dữ liệu gốc + chuyển đổi khi chạy** (Mục 2) — không cần thao tác tay. Nếu
-muốn tự chạy riêng:
+## 3. Cài đặt
 
 ```bash
-git clone https://github.com/kimkim00/UIT-ViSD4SA.git
-python scripts/prepare_data.py --raw-dir UIT-ViSD4SA/data --out-dir UIT-ViSD4SA/iob
+git clone <URL repo này>
+cd multihead-crf-uit-visd4sa
+pip install -r requirements.txt
 ```
 
-Script tái hiện đúng quy trình chuyển đổi gốc (whitespace syllable-tokenize, gán IOB theo 3 biến
-thể nhãn `aspect`/`polarity`/`aspect_polarity`, dựng vocab từ tập train) — xem docstring của
-`scripts/prepare_data.py` để biết 1 khác biệt nhỏ đã biết so với dữ liệu dùng để báo cáo kết quả
-gốc (không áp dụng 1 bước sửa lỗi offset thủ công riêng của dự án gốc).
+## 4. Dữ liệu
 
-**Trích dẫn bắt buộc** nếu dùng dữ liệu này:
+**UIT-ViSD4SA**: 35.396 span đã gán nhãn thủ công trên 11.122 bình luận điện thoại tiếng Việt, 10
+khía cạnh × 3 cực tính. Nguồn: https://github.com/kimkim00/UIT-ViSD4SA
+
+Repo này **không commit dữ liệu đã chuyển đổi** (`UIT-ViSD4SA/iob/{train,dev,test}.json`) — dữ liệu
+của bên thứ ba, không có giấy phép redistribute rõ ràng, chỉ yêu cầu trích dẫn. Chỉ `vocab.json`
+(thống kê suy ra, không chứa văn bản gốc) được commit sẵn.
+
+```bash
+git clone https://github.com/kimkim00/UIT-ViSD4SA.git UIT-ViSD4SA-raw
+python scripts/prepare_data.py --raw-dir UIT-ViSD4SA-raw/data --out-dir UIT-ViSD4SA/iob
+```
+
+**Lưu ý về độ chính xác của bước chuyển đổi**: script trên tái hiện quy trình gốc (whitespace
+syllable-tokenize, gán IOB, dựng vocab) nhưng **không** áp dụng 1 bước sửa lỗi offset thủ công riêng
+của dự án gốc (122 span, thực hiện trong 1 notebook không có trong repo này) — số liệu tái lập có
+thể lệch nhẹ (đã đo: lệch đúng 1 tài liệu ở tập train/dev so với thống kê 7.784/1.113 trong README
+gốc của UIT-ViSD4SA, tập test khớp chính xác 2.225). Nếu cần khớp tuyệt đối 100% với dữ liệu đã dùng
+để có số liệu trong bài, cần dùng đúng file `train.json`/`dev.json`/`test.json` gốc của dự án chính
+(không có trong repo standalone này).
+
+**Trích dẫn bắt buộc** nếu dùng dữ liệu UIT-ViSD4SA:
 ```bibtex
 @inproceedings{thanh-etal-2021-span,
     title = "Span Detection for Aspect-Based Sentiment Analysis in Vietnamese",
@@ -92,52 +91,109 @@ gốc (không áp dụng 1 bước sửa lỗi offset thủ công riêng của d
 }
 ```
 
-Ngoài ra, notebook có tải **PhoW2V** (syllable embedding pretrained, ~458MB, mirror Google Drive
-công khai của `datquocnguyen/PhoW2V`) — chỉ dùng cho mục đích nghiên cứu/giáo dục, không
-redistribute file gốc; khi báo cáo kết quả cần trích dẫn Nguyen, Dao, Nguyen (2020), *"A Pilot
-Study of Text-to-SQL Semantic Parsing for Vietnamese"*, Findings of ACL: EMNLP 2020.
+Notebook có tải thêm **PhoW2V** (syllable embedding pretrained, ~458MB) -- chỉ dùng cho mục đích
+nghiên cứu/giáo dục; khi báo cáo kết quả cần trích dẫn Nguyen, Dao, Nguyen (2020), *"A Pilot Study of
+Text-to-SQL Semantic Parsing for Vietnamese"*, Findings of ACL: EMNLP 2020.
 
-## Chạy trên Google Colab (khuyến nghị)
+## 5. Tái lập từng bảng kết quả
 
-1. Mở `notebooks/19_multihead_crf_model.ipynb` trên Colab (File → Open notebook → GitHub, dán URL
-   repo này, hoặc mở trực tiếp từ trang GitHub bằng nút "Open in Colab" nếu bạn thêm badge).
-2. **Runtime → Change runtime type → GPU (T4)**.
-3. Sửa `GITHUB_REPO_URL` ở Mục 2 thành URL repo GitHub thật của bạn.
-4. **Runtime → Run all** — Mục 2 tự `git clone` repo này + dữ liệu gốc, tự chuyển đổi dữ liệu nếu
-   chưa có. Không cần upload file tay.
+Cả 3 lệnh dưới đây đọc chung `config/hyperparams.yaml` — baseline và mô hình đề xuất LUÔN cùng 1
+cấu hình huấn luyện.
 
-## Chạy cục bộ
+### Bảng III/IV (Exact Match F1, macro/micro, 5 seed cố định)
 
 ```bash
-git clone <URL repo này>
-cd multihead-crf-uit-visd4sa
-pip install -r requirements.txt
-pip install transformers gensim gdown   # cần cho huấn luyện thật (không pin cứng phiên bản, xem requirements.txt)
+# PhoW2V: tải + giải nén vào phow2v/extracted/ trước (xem notebooks/19 Mục 3, hoặc gdown thủ công)
+python scripts/train.py --model baseline  --seeds 42 123 777 2024 2025
+python scripts/train.py --model multihead --seeds 42 123 777 2024 2025
 
-git clone https://github.com/kimkim00/UIT-ViSD4SA.git UIT-ViSD4SA-raw
-python scripts/prepare_data.py --raw-dir UIT-ViSD4SA-raw/data --out-dir UIT-ViSD4SA/iob
-
-python scripts/smoke_test_multihead_model.py   # kiểm thử nhanh, CPU, ~vài giây
-jupyter notebook notebooks/19_multihead_crf_model.ipynb   # huấn luyện thật cần GPU
+python scripts/results_to_csv.py --glob "results_baseline_seed*.json"  --out table_baseline.csv
+python scripts/results_to_csv.py --glob "results_multihead_seed*.json" --out table_multihead.csv
 ```
 
-## Kiểm thử
+In ra trực tiếp mean ± std qua 5 seed (macro-F1, micro-F1) — đối chiếu với **45.63% ± 0.74 macro-F1,
+59.84% ± 0.77 micro-F1** đã báo cáo trong bài (số liệu này CẦN chạy thật trên GPU để xác nhận lại —
+xem mục 7 "Giới hạn" dưới đây).
+
+Đánh giá lại 1 checkpoint đã có (không train lại), gồm cả default-assignment rate/orphan rate
+(Section III-C):
+```bash
+python scripts/evaluate.py --model multihead --checkpoint checkpoint_multihead_seed42.pt
+```
+
+### Section IV-B (độ trễ suy luận, batch_size=1, baseline vs mô hình đề xuất)
+
+```bash
+python scripts/measure_latency.py \
+    --baseline-checkpoint checkpoint_baseline_seed42.pt \
+    --multihead-checkpoint checkpoint_multihead_seed42.pt
+```
+
+### Bảng V (F1 theo khía cạnh, mean ± std qua 5 seed)
+
+```bash
+python scripts/table_per_aspect_f1.py --glob "results_multihead_seed*.json" --out table_v.csv
+```
+
+### (Tuỳ chọn) Notebook Colab
+
+`notebooks/19_multihead_crf_model.ipynb` huấn luyện mô hình đề xuất trên Colab (GPU T4) — tiện cho
+khám phá tương tác, nhưng **`scripts/train.py` là nguồn tái lập chính thức** (đảm bảo baseline và mô
+hình đề xuất luôn cùng cấu hình bằng cách đọc chung 1 file config, thay vì phải giữ đồng bộ tay 2
+notebook riêng). Sửa `GITHUB_REPO_URL` ở Mục 2 của notebook thành URL repo thật sau khi push.
+
+## 6. Kiểm thử
 
 ```bash
 python scripts/smoke_test_multihead_model.py
 ```
-
 Không cần GPU/mạng — kiểm tra `merge_aspect_polarity_spans`, forward/backward của
-`BiLSTMMultiHeadCRFTagger`, và (nếu đã chạy `prepare_data.py`) 1 vòng huấn luyện + suy luận trên dữ
-liệu thật.
+`BiLSTMMultiHeadCRFTagger`, và (nếu đã có dữ liệu) 1 vòng huấn luyện + suy luận trên dữ liệu thật.
 
-## Kết quả tham chiếu
+## 7. Giới hạn / lưu ý khi tái lập (đọc trước khi báo cáo lại số liệu)
 
-Bài báo gốc (syllable + char + XLM-R-Large, cấu hình tốt nhất): F1-macro (aspect_polarity) =
-**45.70%**, aspect = 62.76%, polarity = 49.77% (Bảng 3). Notebook in bảng so sánh trực tiếp với các
-con số này ở cell cuối.
+- **Không có early stopping**: cả baseline và mô hình đề xuất LUÔN chạy đủ `epochs` trong config
+  (mặc định 30), không dừng sớm — đây là lựa chọn ĐỒNG BỘ giữa 2 mô hình, nhưng **cần bạn tự xác
+  nhận lại với bản thảo bài báo** xem mục Huấn luyện có nói rõ có/không dùng early stopping hay
+  không; nếu bài báo có nêu, cần khôi phục lại patience ở cả 2 nơi (`src/training.py::train_model`,
+  `src/multihead_training.py::train_model`) cho khớp.
+- **`requirements.txt` không được xác nhận bit-for-bit** đúng phiên bản đã dùng trên Google Colab
+  lúc tạo ra số liệu báo cáo (Colab không lưu log version) — xem lưu ý ngay trong file đó.
+- **`scripts/prepare_data.py`** tái tạo dữ liệu IOB từ file jsonl gốc nhưng thiếu 1 bước sửa lỗi
+  offset thủ công của dự án chính (xem mục 4) — lệch 1 tài liệu ở train/dev.
+- **Số liệu 45.63% ± 0.74 / 59.84% ± 0.77** (macro/micro-F1, cam kết với Reviewer 1) **chưa được
+  xác nhận lại bằng 1 lần chạy GPU thật trong quá trình chuẩn bị repo này** — code đã qua kiểm thử
+  đầy đủ (chạy đúng, không lỗi, trên CPU với cấu hình rút gọn), nhưng việc tái lập ĐÚNG con số cần
+  chạy thật `scripts/train.py` với đầy đủ 5 seed trên GPU (nhiều giờ/seed với XLM-R-large).
 
-## Giấy phép
+## 8. Đối chiếu với bài báo gốc (Nguyen et al. 2021)
 
-Mã nguồn trong repo này được chia sẻ cho mục đích nghiên cứu/học thuật. Bộ dữ liệu UIT-ViSD4SA và
-PhoW2V thuộc bản quyền của tác giả gốc tương ứng — xem mục "Dữ liệu" ở trên về yêu cầu trích dẫn.
+*(Bảng này áp dụng cho phần Step-1 encoder + baseline, kế thừa trực tiếp từ Nguyen et al. 2021 —
+phần "2 CRF độc lập + merge" là đóng góp riêng của bài D044, không đối chiếu ở đây.)*
+
+| Khoản mục | Khớp bài báo | Khác / diễn giải | Không có thông tin trong bài báo |
+|---|---|---|---|
+| Chiều embedding syllable/char (100d) | ✅ | | |
+| Dropout 0.33 | ✅ | | |
+| Tiêu chí đúng: exact-match (start+end+label) | ✅ | | |
+| P/R/F1 micro + macro + per-class | ✅ | | |
+| Tokenize theo âm tiết (syllable-level) | ✅ | | |
+| weight_decay chỉ áp cho CRF (Eq. 11) | ✅ (phạm vi) | Giá trị `1e-2` là số AdamW tiêu chuẩn, không phải số bài báo | |
+| Nguồn syllable embedding pretrained | | PhoW2V thay `baomoi.zip` gốc (đã chết link) | |
+| Lớp chiếu XLM-R về 100 chiều | | Diễn giải nghĩa đen Section 5.1 | |
+| "batch_size=5000" | | Diễn giải là ngân sách TOKEN, không phải số câu | |
+| Fine-tune hay đóng băng syllable/XLM-R | | | ✅ (đã grep toàn văn "freeze/frozen/fine-tune" = 0 kết quả) |
+| Optimizer, learning rate, learning rate riêng cho XLM-R | | | ✅ |
+| Số epoch, tiêu chí dừng/chọn checkpoint | | | ✅ |
+| Chạy đa-seed / báo cáo mean±std | | | ✅ |
+
+## 9. Giấy phép
+
+Mã nguồn: xem [LICENSE](LICENSE) — **cần điền tên chủ sở hữu bản quyền** (mặc định soạn sẵn MIT,
+tham khảo quy định của trường/khoa trước khi công bố chính thức). Dữ liệu UIT-ViSD4SA và PhoW2V
+thuộc bản quyền tác giả gốc tương ứng — xem mục 4 về yêu cầu trích dẫn.
+
+## 10. Trích dẫn repo này
+
+Xem [CITATION.cff](CITATION.cff) — **còn 1 số trường TODO cần điền** (tên bài báo chính xác, danh
+sách tác giả, URL GitHub, DOI Zenodo) sau khi hoàn tất archive.

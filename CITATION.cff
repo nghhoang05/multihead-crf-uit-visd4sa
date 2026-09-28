@@ -1,0 +1,29 @@
+# CITATION.cff -- cho phép GitHub tự hiện nút "Cite this repository".
+# Xem đặc tả đầy đủ: https://citation-file-format.github.io
+#
+# TODO (điền trước khi công bố camera-ready): title/authors/DOI dưới đây là
+# CHỖ TRỐNG cần điền đúng theo bản thảo D044 cuối cùng -- tôi (trợ lý) không
+# có quyền truy cập bản thảo/tên tác giả đầy đủ để điền chính xác.
+cff-version: 1.2.0
+message: "Nếu dùng code trong repo này, vui lòng trích dẫn theo thông tin dưới đây."
+title: "TODO: Điền đúng tên bài báo D044 (bản camera-ready cuối cùng)"
+version: 1.0.0
+date-released: "TODO: điền ngày tạo release GitHub (định dạng YYYY-MM-DD)"
+authors:
+  - family-names: "TODO"
+    given-names: "TODO"
+    # Thêm 1 mục "- family-names / given-names" cho mỗi tác giả bài báo, đúng thứ tự trong bản thảo.
+repository-code: "TODO: điền URL GitHub repo sau khi push (vd https://github.com/<ten-tai-khoan>/<ten-repo>)"
+doi: "TODO: điền DOI Zenodo sau khi tạo Release + archive (dạng 10.5281/zenodo.XXXXXXX)"
+license: MIT
+keywords:
+  - aspect-based sentiment analysis
+  - span detection
+  - Vietnamese NLP
+  - CRF
+  - multi-head
+abstract: >
+  Code kèm bài báo D044: mô hình đề xuất dùng shared encoder (syllable +
+  character CharLSTM + XLM-R-large) và 2 nhánh CRF độc lập cho bài toán
+  span detection trong phân tích cảm xúc theo khía cạnh (ABSA) tiếng Việt,
+  đối chiếu với baseline 1-CRF trên bộ dữ liệu UIT-ViSD4SA.
