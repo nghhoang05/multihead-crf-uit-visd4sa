@@ -1,19 +1,31 @@
 # CITATION.cff -- cho phép GitHub tự hiện nút "Cite this repository".
 # Xem đặc tả đầy đủ: https://citation-file-format.github.io
 #
-# TODO (điền trước khi công bố camera-ready): title/authors/DOI dưới đây là
-# CHỖ TRỐNG cần điền đúng theo bản thảo D044 cuối cùng -- tôi (trợ lý) không
-# có quyền truy cập bản thảo/tên tác giả đầy đủ để điền chính xác.
+# LƯU Ý: kiểm tra lại đúng chính tả "title" (đoạn dán vào bị mất chữ cái đầu, đã tự
+# suy luận là "Decoupled..." -- xác nhận lại với bản thảo D044 trước khi push).
 cff-version: 1.2.0
 message: "Nếu dùng code trong repo này, vui lòng trích dẫn theo thông tin dưới đây."
-title: "TODO: Điền đúng tên bài báo D044 (bản camera-ready cuối cùng)"
+title: "Decoupled CRF Architecture with a Shared Encoder for Span Detection in Vietnamese Aspect-Based Sentiment Analysis"
 version: 1.0.0
 date-released: "TODO: điền ngày tạo release GitHub (định dạng YYYY-MM-DD)"
 authors:
-  - family-names: "TODO"
-    given-names: "TODO"
-    # Thêm 1 mục "- family-names / given-names" cho mỗi tác giả bài báo, đúng thứ tự trong bản thảo.
-repository-code: "TODO: điền URL GitHub repo sau khi push (vd https://github.com/<ten-tai-khoan>/<ten-repo>)"
+  - family-names: "Nguyen"
+    given-names: "Huy-Hoang"
+    email: "hoangnh23411@st.uel.edu.vn"
+    affiliation: "Faculty of Information Systems, University of Economics and Law, Ho Chi Minh City, Vietnam"
+  - family-names: "Truong"
+    given-names: "Hoai-Phan"
+    email: "hoaiphan@uel.edu.vn"
+    affiliation: "Faculty of Information Systems, University of Economics and Law, Ho Chi Minh City, Vietnam"
+  - family-names: "Le"
+    given-names: "Hoanh-Su"
+    email: "sulh@uel.edu.vn"
+    affiliation: "Faculty of Information Systems, University of Economics and Law, Ho Chi Minh City, Vietnam"
+  - family-names: "Nguyen"
+    given-names: "Phuc"
+    email: "phucnq@uel.edu.vn"
+    affiliation: "Faculty of Information Systems, University of Economics and Law, Ho Chi Minh City, Vietnam"
+repository-code: "https://github.com/nghhoang05/multihead-crf-uit-visd4sa"
 doi: "TODO: điền DOI Zenodo sau khi tạo Release + archive (dạng 10.5281/zenodo.XXXXXXX)"
 license: MIT
 keywords:
