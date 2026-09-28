@@ -44,8 +44,8 @@ def is_rare_class(label: str) -> bool:
 def summarize_experiments(experiments: dict[str, str | Path]) -> pd.DataFrame:
     """
     `experiments`: {label: path_to_results_json}, e.g.
-        {"baseline (v8)": "results_aspect_polarity_final_pipeline.json",
-         "+ CharCNN": "results_aspect_polarity_charcnn.json"}
+        {"seed 42": "results_multihead_seed42.json",
+         "seed 123": "results_multihead_seed123.json"}
 
     Returns one row per experiment: scheme, F1 micro/macro (dev best + test),
     gap so với bài báo, thời gian train, số tham số, số batch bị bỏ qua vì OOM,

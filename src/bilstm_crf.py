@@ -27,8 +27,8 @@ see the conversation log and notebook 08's intro):
     together with other model parameters during training" (Nguyen et al.,
     2017, Section 3.4) -- i.e. fine-tuning, not freezing, is the more
     faithful choice here. An earlier run froze this embedding instead (kept
-    available via freeze_syllable=True) and scored *below* the pre-PhoW2V
-    random-init baseline (35.12% vs 40.55% F1-macro, aspect_polarity) --
+    available via freeze_syllable=True) and scored *below* random-init
+    syllable embeddings (35.12% vs 40.55% F1-macro, aspect_polarity) --
     switched to fine-tuning after that result. Character embeddings are
     still trained from scratch (no pretrained source exists or is expected
     for char-level).
@@ -89,7 +89,7 @@ class ContextualEncoder(nn.Module):
         """`freeze=True` reproduces the earlier frozen-feature-extractor
         ablation (kept for comparison); default is fine-tune, since freezing
         both pretrained embedding sources (syllable + XLM-R) empirically
-        underperformed the original random-init-syllable baseline (see
+        underperformed random-init syllable embeddings (see
         `EmbeddingFusion`'s docstring).
 
         `projected_dim` (default 100): Section 5.1 of the paper states "Our
@@ -178,14 +178,15 @@ class EmbeddingFusion(nn.Module):
         initializes the syllable embedding from PhoW2V instead of random
         weights. `freeze_syllable` (default False -- fine-tune, matching
         Nguyen et al. 2017's own procedure for syllable embeddings, and
-        the empirical result that freezing it underperformed even the
-        random-init baseline) sets `requires_grad=False` on it when True,
-        for the rare case you want to reproduce that frozen ablation.
-        `freeze_contextual` (default False -- fine-tune XLM-R too) is
-        forwarded to `ContextualEncoder`; when fine-tuning, use a much
-        smaller learning rate for these params than for the rest of the
-        model (see `src/training.py::train_model`'s `xlmr_lr`), or the
-        pretrained XLM-R weights will be destroyed within a few steps.
+        the empirical result that freezing it underperformed even
+        random-init syllable embeddings) sets `requires_grad=False` on it
+        when True, for the rare case you want to reproduce that frozen
+        ablation. `freeze_contextual` (default False -- fine-tune XLM-R
+        too) is forwarded to `ContextualEncoder`; when fine-tuning, use a
+        much smaller learning rate for these params than for the rest of
+        the model (see `src/multihead_training.py::train_model`'s
+        `xlmr_lr`), or the pretrained XLM-R weights will be destroyed
+        within a few steps.
         `contextual_projected_dim` (default 100) is forwarded to
         `ContextualEncoder` -- see its docstring for why (Section 5.1 of
         the paper).

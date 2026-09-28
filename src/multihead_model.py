@@ -75,7 +75,7 @@ class BiLSTMMultiHeadCRFTagger(nn.Module):
         self.crf_polarity = CRF(num_tags_polarity, pad_idx=tag_pad_idx)
 
     def _shared_hidden(self, batch: dict) -> torch.Tensor:
-        """Step 1, identical to the baseline: embedding fusion -> BiLSTM.
+        """Step 1: embedding fusion -> BiLSTM (see `src/bilstm_crf.py`).
         Both CRF heads read from this SAME tensor -- this is the "shared
         encoder" that lets gradients from either loss term update
         representations the other head also benefits from."""

@@ -5,8 +5,7 @@ XLM-R-large) và **hai nhánh CRF độc lập** (aspect + polarity) cho bài to
 tích cảm xúc theo khía cạnh (ABSA) tiếng Việt, trên bộ dữ liệu UIT-ViSD4SA — mở rộng từ Nguyen et
 al. (2021), PACLIC 35, *"Span Detection for Aspect-Based Sentiment Analysis in Vietnamese"*.
 
-> Repo này chỉ chứa **mô hình đề xuất** (2-CRF-head). Không có 1 baseline (1-CRF gộp) nào được đóng
-> gói/công bố kèm repo này.
+> Repo này chỉ chứa **mô hình đề xuất** (2 nhánh CRF độc lập: aspect + polarity).
 
 ## 1. Kiến trúc
 
