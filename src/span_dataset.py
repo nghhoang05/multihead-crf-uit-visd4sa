@@ -1,12 +1,9 @@
 """
 Vocab loading + the syllable/char/subword-alignment encoding shared by
 `src/multihead_dataset.py::MultiHeadCollator` -- turns the syllable-
-tokenized, IOB-tagged documents produced by `src/span_detection.py` (see
-notebook 08) into padded batches.
-
-Handles the one genuinely tricky bit: aligning XLM-R SUBWORD embeddings back
-to SYLLABLE tokens (the paper's tagging granularity) by mean-pooling every
-subword whose character span overlaps a given syllable's character span.
+tokenized, IOB-tagged documents produced by `src/span_detection.py` into
+padded batches. Aligns XLM-R subword embeddings back to syllable tokens by
+mean-pooling every subword whose character span overlaps a syllable's.
 """
 from __future__ import annotations
 
@@ -59,13 +56,8 @@ def _tag_vocab(tags: list[str]) -> Vocab:
 def _encode_syllable_char_mask(
     batch: list[dict], syll_vocab: "Vocab", char_vocab: "Vocab", bsz: int, seq_len: int, max_char_len: int,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Used by `src/multihead_dataset.py::MultiHeadCollator` for its
-    syllable-id/char-id/mask encoding -- factored out here so it has a
-    single, independently-testable home rather than living inline inside
-    that collator. Returns (syllable_ids, mask,
-    char_ids, char_lengths), same tensors/shapes/semantics as before this
-    refactor (lowercased syllable lookup, per-character char_vocab encoding,
-    `mask[b, :n] = True` for the real, unpadded length of each example)."""
+    """Used by `src/multihead_dataset.py::MultiHeadCollator`. Returns
+    (syllable_ids, mask, char_ids, char_lengths)."""
     syllable_ids = torch.zeros(bsz, seq_len, dtype=torch.long)
     mask = torch.zeros(bsz, seq_len, dtype=torch.bool)
     char_ids = torch.zeros(bsz, seq_len, max_char_len, dtype=torch.long)

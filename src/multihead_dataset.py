@@ -3,14 +3,10 @@ Dataset/collate utilities for the CRF multi-head span detection model
 (`src/multihead_model.py::BiLSTMMultiHeadCRFTagger`).
 
 Reads `UIT-ViSD4SA/iob/{train,dev,test}.json` + `vocab.json`
-(`scripts/prepare_data.py`'s output): every doc there already carries
-`tags_aspect`, `tags_polarity`, AND `tags_aspect_polarity` (the 3 schemes
-from `src/span_detection.py`), and `vocab.json`'s `tag_vocab` already has
-all 3 as separate tag sets. This collator reads all three per example --
-`tags_aspect`/`tags_polarity` are the two heads' TRAINING targets, while
-`tags_aspect_polarity` is carried through unchanged so gold spans can be
-decoded via the combined tag vocab + `bio_to_spans` (see
-`src/multihead_training.py::predict_dataset`).
+(`scripts/prepare_data.py`'s output): each doc carries `tags_aspect`,
+`tags_polarity` (the two heads' training targets) and `tags_aspect_polarity`
+(carried through unchanged so gold spans can be decoded via the combined
+tag vocab, see `src/multihead_training.py::predict_dataset`).
 """
 from __future__ import annotations
 
@@ -43,10 +39,9 @@ class MultiHeadSpanDataset(Dataset):
 
 
 class MultiHeadCollator:
-    """Callable collate_fn, sharing its syllable/char/mask encoding with
-    `src/span_dataset.py::Collator` via `_encode_syllable_char_mask` (and its
-    XLM-R subword alignment matrix construction via `_build_alignment_matrix`)
-    -- only the TAG encoding differs (3 tag tensors instead of 1)."""
+    """Callable collate_fn -- syllable/char/mask encoding via
+    `src/span_dataset.py::_encode_syllable_char_mask`, XLM-R subword
+    alignment via `_build_alignment_matrix`."""
 
     def __init__(self, vocab: dict, tokenizer=None, use_contextual: bool = True, max_subword_len: int = 512):
         self.vocab = vocab

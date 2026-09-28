@@ -1,10 +1,7 @@
 """
 CLI huấn luyện mô hình đề xuất (`BiLSTMMultiHeadCRFTagger`, 2 CRF độc lập
-21+7 nhãn) -- đọc TOÀN BỘ siêu tham số từ `config/hyperparams.yaml` (không
-hardcode). Không viết lại logic huấn luyện/model nào cả -- chỉ là 1 lớp
-orchestration mỏng gọi thẳng `src/multihead_training.py` (logic ĐÚNG những
-gì `notebooks/19_multihead_crf_model.ipynb` chạy trên Colab, chỉ khác ở chỗ
-chạy được ngoài Colab qua dòng lệnh).
+21+7 nhãn) -- đọc toàn bộ siêu tham số từ `config/hyperparams.yaml`, gọi
+thẳng `src/multihead_training.py` (không viết lại logic huấn luyện/model).
 
 Cách dùng:
     python scripts/train.py --seeds 42 123 777 2024 2025

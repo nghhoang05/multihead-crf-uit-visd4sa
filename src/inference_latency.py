@@ -1,29 +1,13 @@
 """
-Đo chi phí suy luận (latency) của mô hình đề xuất
-(`src/multihead_model.py::BiLSTMMultiHeadCRFTagger`, 2 CRF độc lập 21+7
-nhãn) bằng SỐ ĐO, không suy luận lý thuyết: không gian nhãn nhỏ hơn giúp mỗi
-CRF decode rẻ hơn, NHƯNG cần thêm bước hợp nhất
-(`merge_aspect_polarity_spans`, `src/multihead_training.py`) -- 2 hiệu ứng
-kéo ngược chiều nhau, nên cần tách riêng và đo trực tiếp từng giai đoạn thay
-vì chỉ nhìn tổng.
+Đo chi phí suy luận (latency) của mô hình đề xuất, tách riêng từng giai đoạn
+(đồng bộ CUDA trước/sau mỗi giai đoạn để đo chính xác):
+  - `model_forward_ms`: embedding fusion + BiLSTM + Viterbi decode 2 CRF
+  - `spans_decode_ms`: chuyển 2 chuỗi tag id thành span (2 lần, 1 lần/head)
+  - `merge_ms`: `merge_aspect_polarity_spans` -- chi phí riêng của bước hợp nhất
+  - `total_ms`/`docs_per_sec`: tổng cả 3 giai đoạn trên
 
-Tách latency mỗi câu thành các giai đoạn RIÊNG BIỆT (đo bằng `time.
-perf_counter()`, đồng bộ CUDA -- `torch.cuda.synchronize()` -- ngay trước/
-sau mỗi giai đoạn để không đo nhầm thời gian kernel launch bất đồng bộ):
-
-  - `model_forward_ms`: embedding fusion + BiLSTM (encoder) + Viterbi decode
-    2 CRF (aspect 21 nhãn, polarity 7 nhãn) -- decode L=21 rồi L=7 RIÊNG
-    BIỆT, không phải L=28 gộp (Viterbi mỗi bước thời gian O(T x L^2)).
-  - `spans_decode_ms`: chuyển 2 chuỗi tag id (aspect, polarity) thành span
-    (dict) -- làm việc này 2 LẦN (1 lần/head), tự nó đã là 1 khoản chi phí
-    riêng, TRƯỚC CẢ bước hợp nhất.
-  - `merge_ms`: `merge_aspect_polarity_spans` -- bước hợp nhất 2 CRF, phần
-    chi phí "thêm vào" cần đo trực tiếp thay vì suy luận.
-  - `total_ms`/`docs_per_sec`: tổng cả 3 giai đoạn trên.
-
-`n_warmup_batches` (mặc định 2) loại các batch ĐẦU khỏi số đo -- lần forward
-đầu tiên qua XLM-R tốn thêm thời gian biên dịch kernel CUDA/cuDNN autotune,
-không đại diện cho latency ổn định của các câu sau.
+`n_warmup_batches` loại các batch đầu khỏi số đo (lần forward đầu qua XLM-R
+tốn thêm thời gian biên dịch kernel, không đại diện cho latency ổn định).
 """
 from __future__ import annotations
 

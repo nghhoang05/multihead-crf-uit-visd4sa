@@ -1,24 +1,14 @@
 """
-Vietnamese tone-mark placement normalization ("new style" -> "old style"),
-e.g. "hoà" -> "hòa" is NOT what this does -- it's the reverse direction:
-diphthongs written with the tone mark on the phonetically-stressed vowel
-("hòa", "thúy") are rewritten with the tone mark on the old-style/visually
-centered vowel ("hoà", "thuý").
+Vietnamese tone-mark placement normalization: "new style" (tone mark on the
+phonetically-stressed vowel, e.g. "hòa") -> "old style" ("hoà"). Not Unicode
+NFC/NFD -- a purely orthographic convention mismatch, independent of
+encoding.
 
-This is NOT Unicode NFC/NFD normalization (combining vs precomposed
-diacritics) -- it's a purely orthographic convention mismatch between two
-common Vietnamese typing/spelling styles, independent of encoding.
-
-Required because PhoW2V's 20GB training corpus was preprocessed with this
-exact table before training (see VinAI's PhoW2V README), so looking up a
-syllable that came from "new style" text (the overwhelming majority of
-modern Vietnamese software output, including our UIT-ViSD4SA reviews)
-against PhoW2V's vocabulary needs the same rewrite first, or many oa/oe/uy
-syllables will spuriously miss and fall back to <UNK>.
-
-Source: VinAIResearch/BARTpho, VietnameseToneNormalization.md (dict_map
-reproduced verbatim -- it is a small, fixed orthographic lookup table, not
-prose/creative content).
+Needed because PhoW2V's training corpus was preprocessed with this exact
+table, so looking up a "new style" syllable (the common modern spelling,
+including UIT-ViSD4SA's reviews) against PhoW2V's vocabulary needs the same
+rewrite first, or oa/oe/uy syllables spuriously miss and fall back to <UNK>.
+Table source: VinAIResearch/BARTpho, VietnameseToneNormalization.md.
 """
 from __future__ import annotations
 

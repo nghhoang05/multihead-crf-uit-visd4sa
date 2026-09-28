@@ -1,11 +1,8 @@
 """
 Training loop + decode/evaluate for the CRF multi-head span detection model
-(`src/multihead_model.py::BiLSTMMultiHeadCRFTagger`) -- AdamW + fp16 AMP +
-CUDA-OOM-recovery training loop with CRF-only weight decay scoping (see
-`_build_multihead_param_groups`), adapted for the 2-CRF-head loss/predict
-shapes, and for merging the two independently-decoded tag sequences
-(aspect, polarity) back into the single (start, end, "ASPECT#POLARITY")
-format `src/evaluation.py::evaluate` expects.
+(`src/multihead_model.py::BiLSTMMultiHeadCRFTagger`): AdamW + fp16 AMP +
+CUDA-OOM-recovery training loop, plus merging the two independently-decoded
+tag sequences (aspect, polarity) into (start, end, "ASPECT#POLARITY") spans.
 """
 from __future__ import annotations
 
@@ -30,39 +27,17 @@ def merge_aspect_polarity_spans(
     aspect_spans: list[dict], polarity_spans: list[dict], default_polarity: str = "POSITIVE",
     return_stats: bool = False,
 ) -> set[tuple[int, int, str]] | tuple[set[tuple[int, int, str]], dict]:
-    """Combine independently-decoded aspect spans (from the aspect CRF head,
-    each a dict with start/end/label=ASPECT, `src/span_detection.py::
-    bio_to_spans`'s output format) and polarity spans (same shape,
-    label=POLARITY) into the final (start, end, "ASPECT#POLARITY") set
-    `src/evaluation.py::evaluate` expects.
+    """Merge independently-decoded aspect spans and polarity spans (both from
+    `src/span_detection.py::bio_to_spans`) into (start, end, "ASPECT#POLARITY")
+    tuples. Aspect boundaries are canonical; each aspect span takes the
+    polarity of whichever polarity span overlaps it MOST by character length
+    (ties keep whichever was seen first in `polarity_spans`). No overlap at
+    all -> falls back to `default_polarity`, so an aspect span is never
+    dropped just because the polarity head missed it.
 
-    The ASPECT head's boundaries are used as the canonical segmentation
-    (aspect identification -- "what is being talked about" -- is this
-    task's primary structure; polarity is a property OF an aspect mention,
-    not an independent span). For each aspect span, the merged polarity is
-    whichever polarity span OVERLAPS it the MOST, by character length (a
-    simple, deterministic majority-overlap vote); ties keep whichever was
-    seen first. If no polarity span overlaps the aspect span AT ALL (the two
-    heads fully disagree on where that span is -- expected to be rare once
-    both heads are reasonably trained, since they share the same encoder and
-    are trained on the same underlying spans), falls back to
-    `default_polarity` (this dataset's majority sentiment class, so an
-    aspect span is never silently dropped just because the polarity head
-    missed it).
-
-    `return_stats=False` (default, fully backward-compatible -- every
-    existing caller, including `scripts/smoke_test_multihead_model.py`'s
-    direct equality checks against a plain set, keeps working unmodified):
-    when True, ALSO returns a stats dict alongside the SAME merged set
-    (merge logic itself is completely unchanged, this only instruments it):
-    `total_aspect_spans`/`total_polarity_spans` (counts), `default_assigned`
-    (how many aspect spans found NO overlapping polarity span and fell back
-    to `default_polarity`), and `orphan_polarity_discarded` (how many
-    polarity spans never became any aspect span's best match, so they're
-    silently absent from every merged span -- tracked via `id()` on the
-    polarity span dicts, since dicts aren't hashable). See
-    `aggregate_merge_stats` for the dataset-wide rates these are meant to
-    feed into."""
+    `return_stats=True` also returns a dict: `default_assigned` (aspect spans
+    that hit the fallback) and `orphan_polarity_discarded` (polarity spans
+    that never won any aspect span) -- feed into `aggregate_merge_stats`."""
     result = set()
     n_default_assigned = 0
     matched_polarity_ids: set[int] = set()
@@ -93,12 +68,8 @@ def merge_aspect_polarity_spans(
 
 
 def aggregate_merge_stats(all_stats: list[dict]) -> dict:
-    """Cộng dồn stats trả về bởi `merge_aspect_polarity_spans(...,
-    return_stats=True)` qua toàn bộ tập test (1 dict/câu) thành 1 bộ thống
-    kê tổng, và tính 2 tỉ lệ báo cáo: % span aspect phải nhận cực tính MẶC
-    ĐỊNH (không polarity span nào chồng lấn -- dấu hiệu 2 head bất đồng ranh
-    giới), và % polarity span "đơn độc" bị loại khỏi kết quả cuối (chưa từng
-    là lựa chọn tốt nhất cho aspect span nào)."""
+    """Sum per-document `merge_aspect_polarity_spans(..., return_stats=True)`
+    stats into dataset-wide default-assignment and orphan-polarity rates."""
     total_aspect = sum(s["total_aspect_spans"] for s in all_stats)
     total_default = sum(s["default_assigned"] for s in all_stats)
     total_polarity = sum(s["total_polarity_spans"] for s in all_stats)
@@ -123,26 +94,13 @@ def _tokens_with_offsets(tokens: list[str], token_offsets: list[tuple[int, int]]
 def predict_dataset(model, loader, vocab: dict, device: torch.device, use_amp: bool = True, log_fn=print,
                      collect_details: bool = False):
     """Returns (gold_spans_per_doc, pred_spans_per_doc, doc_ids), each a set
-    of (start, end, "ASPECT#POLARITY") -- directly consumable by
-    `src/evaluation.py::evaluate`. Gold spans are decoded from
-    `tag_ids_combined` (the combined-scheme tags carried through unchanged
-    from the data) via `src/evaluation.py::decode_doc_spans`. Only the
-    PREDICTION side differs (merged from the 2 independently-decoded heads
-    via `merge_aspect_polarity_spans`, which still needs `bio_to_spans`'s
-    dict-shaped output directly, not `decode_doc_spans`'s flattened set).
+    of (start, end, "ASPECT#POLARITY"). Predictions are merged from the 2
+    independently-decoded heads via `merge_aspect_polarity_spans`.
 
-    `collect_details=True` (default False, fully backward-compatible --
-    every existing caller, including `train_model`'s own internal dev-set
-    calls, keeps getting the exact same 3-tuple) ADDITIONALLY returns a 4th
-    list, `details`: one JSON-serializable dict per document with
-    `aspect_spans_pred`/`polarity_spans_pred` (the 2 heads' OWN decoded
-    spans, before merging), `merged_spans_pred`/`gold_spans` (span-level),
-    and this document's own `merge_stats` (from `merge_aspect_polarity_spans(...,
-    return_stats=True)` -- feed the per-doc `merge_stats` values into
-    `aggregate_merge_stats` for the dataset-wide rates). Costs a little
-    extra work per document (the merge stats bookkeeping) but no extra
-    forward passes -- purely a post-processing addition over spans the model
-    already produced."""
+    `collect_details=True` additionally returns a 4th list, `details`: one
+    dict per document with `aspect_spans_pred`/`polarity_spans_pred` (pre-
+    merge), `merged_spans_pred`/`gold_spans`, and `merge_stats` (feed into
+    `aggregate_merge_stats` for dataset-wide rates)."""
     model.eval()
     amp_enabled = use_amp and device.type == "cuda"
     aspect_tag_vocab = vocab["tag"]["aspect"]
@@ -199,13 +157,8 @@ def predict_dataset(model, loader, vocab: dict, device: torch.device, use_amp: b
 
 
 def _build_multihead_param_groups(model, lr: float, xlmr_lr: float, weight_decay: float) -> list[dict]:
-    """Splits trainable params into up to 3 AdamW param groups (CRF params
-    at `weight_decay`, everything else at 0, XLM-R at its own `xlmr_lr`) --
-    weight_decay is scoped to ONLY the two CRFs' own parameters because the
-    paper's Eq. (11), Section 4.3 "Conditional Random Fields (CRF)", writes
-    the CRF's training objective as log-likelihood minus an L2 penalty on
-    the CRF's own feature weights, not a network-wide weight decay; adapted
-    here for TWO CRFs (`crf_aspect`, `crf_polarity`) instead of one."""
+    """3 AdamW param groups: the 2 CRFs' own params at `weight_decay` (Eq. 11,
+    Section 4.3), everything else at 0, XLM-R at its own `xlmr_lr`."""
     xlmr_params, other_params = _split_xlmr_params(model)
     crf_ids = {id(p) for p in model.crf_aspect.parameters()} | {id(p) for p in model.crf_polarity.parameters()}
     crf_params = [p for p in other_params if id(p) in crf_ids]

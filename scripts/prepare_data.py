@@ -1,17 +1,10 @@
 """
 Chuyển đổi UIT-ViSD4SA (định dạng jsonl gốc) sang syllable-level IOB + vocab
-mà `src/multihead_dataset.py`/`src/span_dataset.py` cần -- tái hiện đúng quy
-trình của notebook 08 (`08_syllable_iob_conversion.ipynb`) trong dự án gốc,
-nhưng làm việc trực tiếp trên jsonl GỐC của tác giả (không qua bước "sửa 122
-span lỗi offset" riêng của dự án gốc, notebook 05 -- không có trong repo
-này) để repo này tự đứng độc lập được, không phụ thuộc dữ liệu trung gian.
-
-Vì sao KHÔNG commit sẵn `train.json`/`dev.json`/`test.json` (đã chuyển đổi)
-vào repo: UIT-ViSD4SA là dữ liệu nghiên cứu của bên thứ 3 (Nguyen et al.,
-PACLIC 2021, https://github.com/kimkim00/UIT-ViSD4SA), không có giấy phép
-redistribute rõ ràng, chỉ yêu cầu trích dẫn -- an toàn hơn là chỉ đưa CODE
-chuyển đổi vào repo, người dùng tự tải dữ liệu gốc (đã công khai trên GitHub)
-rồi chạy script này.
+mà `src/multihead_dataset.py`/`src/span_dataset.py` cần. Không commit sẵn
+`train.json`/`dev.json`/`test.json` vào repo: UIT-ViSD4SA là dữ liệu nghiên
+cứu của bên thứ 3 (Nguyen et al., PACLIC 2021,
+https://github.com/kimkim00/UIT-ViSD4SA), chỉ yêu cầu trích dẫn khi dùng --
+người dùng tự tải dữ liệu gốc rồi chạy script này.
 
 Cách dùng:
     1. Tải 3 file `train.jsonl`/`dev.jsonl`/`test.jsonl` từ
@@ -115,10 +108,9 @@ def main():
         json.dump({"syllable_vocab": syllable_vocab, "char_vocab": char_vocab, "tag_vocab": tag_vocab}, f, ensure_ascii=False, indent=2)
     print(f"Đã lưu {vocab_path}")
     print(
-        "\nLưu ý: bản chuyển đổi này KHÔNG áp dụng bước 'sửa 122 span lỗi offset' mà dự án gốc "
-        "thực hiện riêng (notebook 05, không có trong repo này) -- nếu cần khớp CHÍNH XÁC "
-        "vocab.json/train.json đã dùng để báo cáo kết quả trong notebook 19, dùng file gốc từ "
-        "dự án chính thay vì tự tạo lại bằng script này."
+        "\nLưu ý: bản chuyển đổi này KHÔNG áp dụng bước 'sửa 122 span lỗi offset' của dự án gốc "
+        "-- nếu cần khớp CHÍNH XÁC số liệu đã báo cáo, dùng file train/dev/test.json gốc thay vì "
+        "tự tạo lại bằng script này."
     )
 
 

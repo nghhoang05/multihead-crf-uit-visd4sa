@@ -1,23 +1,10 @@
-# Phiên bản thư viện đã dùng để phát triển/kiểm thử code trong repo này.
-#
-# LƯU Ý QUAN TRỌNG VỀ ĐỘ TIN CẬY: huấn luyện THẬT (cho ra các con số đã báo cáo trong bài,
-# 45.63% +- 0.74 macro-F1 v.v.) chạy trên Google Colab (GPU T4), KHÔNG phải trên máy phát
-# triển local dùng để soạn file này -- môi trường Colab không lưu lại log phiên bản thư viện
-# chính xác đã dùng tại thời điểm chạy. Các version dưới đây là bản THẬT, ổn định, tương thích
-# lẫn nhau tại thời điểm chuẩn bị repo này, và đã verify code chạy đúng với đúng các version
-# này (`scripts/smoke_test_*.py` đều pass) -- nhưng CHƯA được xác nhận là bit-for-bit đúng
-# version đã tạo ra số liệu trong bài. Nếu tái lập không khớp 100% số liệu báo cáo, đây là nơi
-# đầu tiên nên kiểm tra lại (thử cài `transformers`/`torch` ở các phiên bản lân cận).
+# Phiên bản đã dùng để phát triển/kiểm thử code trong repo này. LƯU Ý: huấn luyện thật
+# (cho ra số liệu báo cáo trong bài) chạy trên Google Colab, môi trường không lưu lại log
+# version chính xác -- các version dưới đây đã verify chạy đúng (smoke test pass) nhưng
+# CHƯA xác nhận bit-for-bit khớp version tạo ra số liệu trong bài.
 
 torch==2.7.0
 numpy==2.2.3
-pandas==2.2.3
 transformers==4.52.3
 gensim==4.4.0
-gdown==5.2.0
 PyYAML==6.0.2
-
-# Chỉ cần nếu chạy notebook cục bộ (không phải Colab):
-jupyter
-ipykernel
-nbformat

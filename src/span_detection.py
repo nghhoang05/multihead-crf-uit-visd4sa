@@ -1,21 +1,12 @@
 """
-Syllable-level sequence-labeling utilities for reproducing the UIT-ViSD4SA
-paper's span detection task (Nguyen et al., 2021, PACLIC 35):
-"Span Detection for Aspect-Based Sentiment Analysis in Vietnamese".
+Syllable-level IOB sequence-labeling utilities for the UIT-ViSD4SA span
+detection task (Nguyen et al., 2021, PACLIC 35). Whitespace already
+separates syllables in written Vietnamese, so tokenization here is simple
+whitespace splitting (not word-segmentation).
 
-The paper formalizes span detection as IOB sequence labeling at the
-SYLLABLE level -- for written Vietnamese, whitespace already separates
-syllables (a multi-syllable word is written as several space-separated
-syllables), so syllable tokenization here is simple whitespace splitting.
-This is deliberately NOT word-segmentation (e.g. underthesea.word_tokenize,
-which merges syllables into compound words) -- that is a different token
-granularity used elsewhere in this project's EDA notebooks, not what this
-paper's model consumes.
-
-Three label schemes are supported, matching the paper's three evaluated
-label variants:
-  - "aspect":          B-CAMERA, I-CAMERA, O, ...            (10 classes)
-  - "polarity":        B-POSITIVE, I-POSITIVE, O, ...        (3 classes)
+Three label schemes:
+  - "aspect":          B-CAMERA, I-CAMERA, O, ...                    (10 classes)
+  - "polarity":        B-POSITIVE, I-POSITIVE, O, ...                (3 classes)
   - "aspect_polarity":  B-CAMERA#POSITIVE, I-CAMERA#POSITIVE, O, ...  (30 classes)
 """
 from __future__ import annotations

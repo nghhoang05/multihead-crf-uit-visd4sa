@@ -46,10 +46,6 @@ inference_latency:
   n_warmup_batches: 5
   use_amp: true
 
-# --- Ghi chú độ tin cậy của file này (đọc trước khi dùng để báo cáo lại số liệu) ---
-# Toàn bộ giá trị bên trên được trích xuất trực tiếp từ code/notebook đã có sẵn trong dự án
-# (đã đối chiếu với các trích dẫn Section/Table/Equation ghi trong docstring của
-# src/bilstm_crf.py, src/multihead_training.py). Các giá trị KHÔNG có trích dẫn cụ thể tới
-# bài báo (lr, xlmr_lr, epochs, checkpoint_selection...) là lựa chọn kỹ thuật của nhóm
-# nghiên cứu, không phải số bài báo quy định -- xem README.md mục "Đối chiếu với bài báo"
-# để biết chi tiết từng mục khớp/khác/không có thông tin.
+# Ghi chú: các giá trị KHÔNG có trích dẫn Section/Table/Equation cụ thể ở trên (lr, xlmr_lr,
+# epochs, checkpoint_selection...) là lựa chọn kỹ thuật của nhóm nghiên cứu, không phải số
+# bài báo quy định.

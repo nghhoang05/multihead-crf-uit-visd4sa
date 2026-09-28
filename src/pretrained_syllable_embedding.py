@@ -2,12 +2,9 @@
 Loads PhoW2V's pretrained syllable-level Word2Vec vectors
 (word2vec_vi_syllables_100dims, see https://github.com/datquocnguyen/PhoW2V)
 and builds an embedding matrix aligned with this project's syllable `Vocab`
-(see `src/span_dataset.py`), to replace the random-init syllable embedding
-that `src/bilstm_crf.py::EmbeddingFusion` used before (the paper's own
-pretrained-vector source, baomoi.zip, is a dead link -- see that module's
-docstring).
+(see `src/span_dataset.py`).
 
-Usage (typical Colab flow):
+Usage:
     kv = load_word2vec_vectors(path_or_dir)
     matrix, stats = build_syllable_embedding_matrix(vocab["syllable"], kv)
     print(stats)  # coverage report
@@ -67,23 +64,12 @@ def _lookup(kv, token: str) -> np.ndarray | None:
 
 
 def build_syllable_embedding_matrix(vocab, kv, freeze_note: bool = True) -> tuple[torch.Tensor, dict]:
-    """
-    vocab: this project's `Vocab` (src/span_dataset.py) built over the
-    syllable IOB training data (index 0 = <PAD>, index 1 = <UNK>, rest are
-    lowercased syllables).
-    kv: gensim KeyedVectors from `load_word2vec_vectors`.
+    """vocab: this project's `Vocab` (src/span_dataset.py) built over syllable
+    IOB training data. kv: gensim KeyedVectors from `load_word2vec_vectors`.
 
-    Returns (embedding_matrix, stats) where embedding_matrix has shape
-    (len(vocab), kv.vector_size):
-      - row 0 (<PAD>)  -> zeros (matches nn.Embedding(padding_idx=0) convention)
-      - row 1 (<UNK>)  -> mean of all matched vectors (a defensible fallback
-        for out-of-vocabulary tokens at inference time, since this embedding
-        is frozen and can never learn a better UNK vector during training)
-      - rows found in PhoW2V -> the pretrained vector
-      - rows NOT found -> left at random init (same scale as nn.Embedding's
-        default init), so untrained-but-frozen tokens don't collapse to zero
-    stats: {"vocab_size", "n_found", "n_oov", "coverage", "oov_examples"}
-    """
+    Returns (embedding_matrix, stats). Row 0 (<PAD>) -> zeros; row 1 (<UNK>)
+    -> mean of matched vectors; found rows -> pretrained vector; not-found
+    rows -> left at random init."""
     dim = kv.vector_size
     n = len(vocab.itos)
     rng = np.random.default_rng(0)
